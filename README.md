@@ -27,16 +27,17 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 
 ## TODO
 
--[ ] Togglable sidebar
--[ ] Better formating
--[ ] save attached file location for regenrate response
--[ ] connect to google acount 
--[ ] update data to google account
--[ ] install models via app
--[ ] release app build
--[ ] add dark and white mode
--[ ] Text to speech
--[ ] Web search
+- [ ] Togglable sidebar
+- [ ] Better formating
+- [ ] save attached file location for regenrate response
+- [ ] connect to google acount 
+- [ ] update data to google account
+- [ ] install models via app
+- [ ] release app build
+- [ ] add dark and white mode
+- [ ] Text to speech
+- [ ] Web search
+- [ ] clear history
 
 ## Getting Started
 
