@@ -3,6 +3,8 @@
 > ⚠️ This app is under active development
 
 A modern, user-friendly desktop chat interface for Ollama, making local AI models more accessible.
+![Screenshot 2025-02-12 075246](https://github.com/user-attachments/assets/8dfb93b7-05eb-4d82-9944-a11d055d0822)
+![Screenshot 2025-02-12 075130](https://github.com/user-attachments/assets/617974ad-fa34-4f50-97b7-f54cfb632d06)
 
 ## Why OllaChat?
 
