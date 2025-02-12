@@ -1,0 +1,5 @@
+targets:
+  $default:
+    builders:
+      objectbox_generator|objectbox_generator:
+        enabled: true 

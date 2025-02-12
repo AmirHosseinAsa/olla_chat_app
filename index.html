@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic Gym</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #1a1a1a;
+            --secondary-color: #2a2a2a;
+            --accent-color: #00ff88;
+            --text-color: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--primary-color);
+            color: var(--text-color);
+        }
+
+        .glass-nav {
+            background: rgba(26, 26, 26, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 1rem 5%;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        .menu-item {
+            padding: 0.5rem 2%;
+        }
+
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            padding: 2rem;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px var(--accent-color);
+        }
+
+        .pulse-button {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .video-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .programs {
+            padding: 5rem 5%;
+        }
+
+        .program-card {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .program-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.1);
+        }
+
+        .trainer-profile {
+            background: var(--primary-color);
+            border-radius: 50%;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 2rem;
+        }
+
+        .trainer-image {
+            width: 200px;
+            height: 200px;
+            border: 3px solid var(--accent-color);
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .trainer-name {
+            position: absolute;
+            bottom: -60px;
+            left: 0;
+            color: var(--text-color);
+        }
+
+        .input-field {
+            background: var(--primary-color);
+            border: 1px solid var(--secondary-color);
+            color: var(--text-color);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .nav-content {
+                display: flex;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="glass-nav">
+        <div class="nav-content">
+            <div class="logo">FUTURE</div>
+            <div class="menu-item">Home</div>
+            <div class="menu-item">Programs</div>
+            <div class="menu-item">Trainers</div>
+            <div class="menu-item">Contact</div>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <video autoplay muted loop class="video-bg">
+            <source src="https://assets.mixkit.co/videos/preview/mixkit-futuristic-city-360-degree-animation-97.mp4" type="video/mp4">
+        </video>
+        <div class="hero-content">
+            <h1>Transform Your Future</h1>
+            <p>Join us for a life-changing fitness experience</p>
+            <button class="pulse-button">Get Started</button>
+        </div>
+    </section>
+
+    <section class="programs">
+        <h2>Our Programs</h2>
+        <div class="program-card">
+            <h3>Advanced Training</h3>
+            <p>Professional-level fitness training for serious athletes</p>
+        </div>
+        <div class="program-card">
+            <h3>Weight Loss</h3>
+            <p>Customized plan for effective fat loss and body shaping</p>
+        </div>
+        <div class="program-card">
+            <h3>Fitness Academy</h3>
+            <p>Comprehensive training for individuals at all fitness levels</p>
+        </div>
+    </section>
+
+    <section class="trainer-profiles">
+        <h2>Our Trainers</h2>
+        <div class="trainer-profile">
+            <img src="https://via.placeholder.com/200" alt="Trainer" class="trainer-image">
+            <div class="trainer-name">John Doe</div>
+        </div>
+        <div class="trainer-profile">
+            <img src="https://via.placeholder.com/200" alt="Trainer" class="trainer-image">
+            <div class="trainer-name">Jane Smith</div>
+        </div>
+    </section>
+
+    <footer style="background: var(--primary-color); color: var(--text-color); padding: 2rem;">
+        <div text-align="center">
+            <p>© 2023 Future Gym. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

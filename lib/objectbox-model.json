@@ -1,0 +1,113 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:5013505523360421892",
+      "lastPropertyId": "7:5341085752727922260",
+      "name": "Chat",
+      "properties": [
+        {
+          "id": "1:6655946388973949037",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:2785878391379912274",
+          "name": "message",
+          "type": 9
+        },
+        {
+          "id": "3:4084290079107298590",
+          "name": "isUserMessage",
+          "type": 1
+        },
+        {
+          "id": "4:5214359034672398599",
+          "name": "timestamp",
+          "type": 10
+        },
+        {
+          "id": "5:2713739939808457237",
+          "name": "chatSessionId",
+          "type": 11,
+          "flags": 520,
+          "indexId": "1:9077298463955823008",
+          "relationTarget": "ChatSession"
+        },
+        {
+          "id": "6:6276889403726328327",
+          "name": "isEdited",
+          "type": 1
+        },
+        {
+          "id": "7:5341085752727922260",
+          "name": "originalMessage",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:4535569352207545955",
+      "lastPropertyId": "5:3019219561447462431",
+      "name": "ChatSession",
+      "properties": [
+        {
+          "id": "1:8814061571969131793",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:6787590904864729058",
+          "name": "modelName",
+          "type": 9
+        },
+        {
+          "id": "3:5144399487899484448",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "4:8721283199662368708",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "5:3019219561447462431",
+          "name": "lastUpdatedAt",
+          "type": 10
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:1210440727587123249",
+      "lastPropertyId": "1:276061838713752609",
+      "name": "ObjectBoxModel",
+      "properties": [
+        {
+          "id": "1:276061838713752609",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "3:1210440727587123249",
+  "lastIndexId": "1:9077298463955823008",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}
