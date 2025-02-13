@@ -42,9 +42,6 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 - [ ] Web search
 - [ ] add dark and white mode
 
-
-
-
 ## Getting Started
 
 1. Install [Ollama](https://ollama.ai)
