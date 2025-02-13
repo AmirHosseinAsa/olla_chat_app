@@ -3,6 +3,7 @@
 > ⚠️ This app is under active development
 
 A modern, user-friendly desktop chat interface for Ollama, making local AI models more accessible.
+![Screenshot 2025-02-12 075246](https://github.com/user-attachments/assets/8dfb93b7-05eb-4d82-9944-a11d055d0822)
 
 ## Why OllaChat?
 
@@ -26,16 +27,23 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 
 ## TODO
 
--[ ] Togglable sidebar
--[ ] Better formating
--[ ] save attached file location for regenrate response
--[ ] connect to google acount 
--[ ] update data to google account
--[ ] install models via app
--[ ] release app build
--[ ] add dark and white mode
--[ ] Text to speech
--[ ] Web search
+- [X] Togglable sidebar
+- [X] Better formating
+- [ ] active Ollama if not enabled already
+- [ ] save attached file location for regenrate response
+- [ ] pdf/doc support
+- [ ] connect to google acount 
+- [ ] update data to google account
+- [ ] install models via app
+- [ ] clear history
+- [ ] relase app build
+- [ ] make toturial 
+- [ ] Text to speech
+- [ ] Web search
+- [ ] add dark and white mode
+
+
+
 
 ## Getting Started
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'app.dart';
 import 'providers/theme_provider.dart';
 import 'objectbox/objectbox.dart';
 import 'pages/chat_page.dart';

@@ -72,7 +72,7 @@ class ChatInput extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Container(
-        width: MediaQuery.of(context).size.width / 1.26,
+        width: MediaQuery.of(context).size.width / 1.22,
         decoration: BoxDecoration(
           color: Color(0xFF1E1B2C).withOpacity(0.9),
           borderRadius: BorderRadius.circular(12),
@@ -104,9 +104,12 @@ class ChatInput extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                IconButton(
-                  icon: Icon(Icons.attach_file, color: Colors.white70),
-                  onPressed: isStreaming ? null : onPickFiles,
+                Container(
+                  padding: EdgeInsets.all(5),
+                  child: IconButton(
+                    icon: Icon(Icons.attach_file, color: Colors.white70),
+                    onPressed: isStreaming ? null : onPickFiles,
+                  ),
                 ),
                 Expanded(
                   child: Container(
@@ -114,51 +117,56 @@ class ChatInput extends StatelessWidget {
                       maxHeight: MediaQuery.of(context).size.height / 1.8,
                     ),
                     child: Focus(
-                      onKeyEvent: (node, event) {
-                        if (event is KeyDownEvent &&
-                            event.logicalKey == LogicalKeyboardKey.enter &&
-                            HardwareKeyboard.instance.isControlPressed) {
-                          if (!isStreaming) {
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent &&
+                              event.logicalKey == LogicalKeyboardKey.enter &&
+                              HardwareKeyboard.instance.isControlPressed) {
+                            if (!isStreaming) {
+                              onSend(controller.text);
+                              controller.clear();
+                            }
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.all(3),
+                          child: TextField(
+                            controller: controller,
+                            decoration: InputDecoration(
+                              hintText: 'Type a message...',
+                              hintStyle: GoogleFonts.getFont(Util.appFont)
+                                  .copyWith(color: Colors.white38),
+                              contentPadding: EdgeInsets.all(16),
+                              border: InputBorder.none,
+                            ),
+                            cursorColor: Color(0xFF8B5CF6),
+                            keyboardType: TextInputType.multiline,
+                            maxLines: null,
+                            minLines: 1,
+                            textInputAction: TextInputAction.newline,
+                            enabled: !isStreaming,
+                            style: GoogleFonts.getFont(Util.appFont)
+                                .copyWith(color: Colors.white70),
+                          ),
+                        )),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.all(5),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.send,
+                      color: isStreaming ? Colors.white10 : Colors.white38,
+                    ),
+                    onPressed: isStreaming
+                        ? null
+                        : () {
                             onSend(controller.text);
                             controller.clear();
-                          }
-                          return KeyEventResult.handled;
-                        }
-                        return KeyEventResult.ignored;
-                      },
-                      child: TextField(
-                        controller: controller,
-                        decoration: InputDecoration(
-                          hintText: 'Type a message...',
-                          hintStyle: GoogleFonts.getFont(Util.appFont)
-                              .copyWith(color: Colors.white38),
-                          contentPadding: EdgeInsets.all(16),
-                          border: InputBorder.none,
-                        ),
-                        cursorColor: Color(0xFF8B5CF6),
-                        keyboardType: TextInputType.multiline,
-                        maxLines: null,
-                        minLines: 1,
-                        textInputAction: TextInputAction.newline,
-                        enabled: !isStreaming,
-                        style: GoogleFonts.getFont(Util.appFont)
-                            .copyWith(color: Colors.white),
-                      ),
-                    ),
+                          },
                   ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.send,
-                    color: isStreaming ? Colors.white10 : Colors.white38,
-                  ),
-                  onPressed: isStreaming
-                      ? null
-                      : () {
-                          onSend(controller.text);
-                          controller.clear();
-                        },
-                ),
+                )
               ],
             ),
           ],

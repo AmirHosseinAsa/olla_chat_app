@@ -46,6 +46,7 @@ class _ChatPageState extends State<ChatPage>
   List<Chat> chats = [];
   List<ChatSession> sessions = [];
   ChatSession? currentSession;
+  bool isSidebarCollapsed = false;
 
   // Initialize Ollama client
   final OllamaClient _ollamaClient = OllamaClient(
@@ -157,6 +158,8 @@ class _ChatPageState extends State<ChatPage>
     chatBox = objectbox.chatBox;
     sessionBox = objectbox.sessionBox;
 
+    // Load sidebar state
+    _loadSidebarState();
     _loadSessions();
     _loadAvailableModels();
     _initTts();
@@ -174,6 +177,21 @@ class _ChatPageState extends State<ChatPage>
       parent: _thinkingAnimationController,
       curve: Curves.easeInOut,
     );
+  }
+
+  Future<void> _loadSidebarState() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isSidebarCollapsed = prefs.getBool('isSidebarCollapsed') ?? false;
+    });
+  }
+
+  Future<void> _toggleSidebar() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isSidebarCollapsed = !isSidebarCollapsed;
+      prefs.setBool('isSidebarCollapsed', isSidebarCollapsed);
+    });
   }
 
   void _loadSessions() {
@@ -437,21 +455,7 @@ class _ChatPageState extends State<ChatPage>
           if (!mounted) return;
           if (res.message?.content != null) {
             setState(() {
-              if (!_showThinking) {
-                // Filter out thinking content during streaming when thinking is disabled
-                final content = res.message!.content.replaceAll(
-                    RegExp(r'<think>.*?(?:</think>|$)', dotAll: true), '');
-                if (content.trim().isNotEmpty) {
-                  botChat.message += content;
-                }
-              } else {
-                if (res.message!.content.contains('<think>')) {
-                  _streamingMessageNotifier.value = 'thinking';
-                } else if (res.message!.content.contains('</think>')) {
-                  _streamingMessageNotifier.value = '';
-                }
-                botChat.message += res.message!.content;
-              }
+              botChat.message += res.message!.content;
               chatBox.put(botChat);
               chats = List.from(chats);
             });
@@ -916,8 +920,8 @@ class _ChatPageState extends State<ChatPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Color(0xFF1E1B2C), // Match app background
-        elevation: 0, // Remove shadow
+        backgroundColor: Color(0xFF1E1B2C),
+        elevation: 0,
         title: Row(
           children: [
             Text(
@@ -936,7 +940,7 @@ class _ChatPageState extends State<ChatPage>
                 child: DropdownButton<String>(
                   value: selectedModel,
                   icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
-                  underline: SizedBox(), // Remove default underline
+                  underline: SizedBox(),
                   dropdownColor: Color(0xFF1E1B2C),
                   items: availableModels.map((model) {
                     return DropdownMenuItem(
@@ -992,7 +996,7 @@ class _ChatPageState extends State<ChatPage>
             onPressed: _showVoiceSelector,
             tooltip: 'Select voice',
           ),
-          // Manage Models (Added this)
+          // Manage Models
           IconButton(
             icon: Icon(
               Icons.model_training,
@@ -1022,130 +1026,198 @@ class _ChatPageState extends State<ChatPage>
             },
             tooltip: 'Settings',
           ),
-          SizedBox(width: 8), // Add some padding at the end
+          SizedBox(width: 8),
         ],
       ),
       body: Row(
         children: [
-          _buildSidebar(),
-          _buildChatArea(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebar() {
-    return Container(
-      width: 250,
-      decoration: BoxDecoration(
-        color: Color(0xFF1E1B2C).withOpacity(0.9),
-        border: Border(
-          right: BorderSide(color: Color(0xFF2D2E32)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0xFF8B5CF6).withOpacity(0.1),
-            blurRadius: 24,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Column(
+          Stack(
             children: [
-              // New Chat Button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: InkWell(
-                  onTap: _createNewSession,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Color(0xFF8B5CF6).withOpacity(0.1)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Color(0xFF8B5CF6).withOpacity(0.2)
-                            : Colors.grey.shade300,
-                      ),
+              AnimatedContainer(
+                duration: Duration(milliseconds: 200),
+                width: isSidebarCollapsed ? 80 : 250,
+                decoration: BoxDecoration(
+                  color: Color(0xFF1E1B2C).withOpacity(0.9),
+                  borderRadius: isSidebarCollapsed
+                      ? BorderRadius.only(
+                          topRight: Radius.circular(24),
+                          bottomRight: Radius.circular(24),
+                        )
+                      : BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF8B5CF6).withOpacity(0.1),
+                      blurRadius: 24,
+                      offset: Offset(0, 4),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_circle_outline,
-                            color: Color(0xFF8B5CF6), size: 20),
-                        SizedBox(width: 8),
-                        Text('New Chat',
-                            style: GoogleFonts.getFont(Util.appFont).copyWith(
-                              color: Color(0xFF8B5CF6),
-                              fontWeight: FontWeight.w600,
-                            )),
+                  ],
+                ),
+                child: isSidebarCollapsed
+                    ? Column(
+                        children: [
+                          SizedBox(height: 16),
+                          Container(
+                            width: 80,
+                            alignment: Alignment.center,
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.add_circle_outline,
+                                color: Color(0xFF8B5CF6),
+                                size: 24,
+                              ),
+                              onPressed: _createNewSession,
+                              tooltip: 'New Chat',
+                            ),
+                          ),
+                          Expanded(child: SizedBox()),
+                        ],
+                      )
+                    : ClipRRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: InkWell(
+                                  onTap: _createNewSession,
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? Color(0xFF8B5CF6).withOpacity(0.1)
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? Color(0xFF8B5CF6).withOpacity(0.2)
+                                            : Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.add_circle_outline,
+                                            color: Color(0xFF8B5CF6), size: 20),
+                                        SizedBox(width: 8),
+                                        Text('New Chat',
+                                            style: GoogleFonts.getFont(
+                                                    Util.appFont)
+                                                .copyWith(
+                                              color: Color(0xFF8B5CF6),
+                                              fontWeight: FontWeight.w600,
+                                            )),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Color(0xFF2D2E32).withOpacity(0.3)
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    onChanged: _handleSearch,
+                                    style: GoogleFonts.getFont(Util.appFont)
+                                        .copyWith(color: Colors.white),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search chats...',
+                                      hintStyle:
+                                          GoogleFonts.getFont(Util.appFont)
+                                              .copyWith(color: Colors.white38),
+                                      prefixIcon: Icon(Icons.search,
+                                          color: Colors.white38, size: 20),
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 12),
+                                    ),
+                                    cursorColor: Color(0xFF8B5CF6),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              Expanded(
+                                child: ListView.builder(
+                                  controller: _sessionsScrollController,
+                                  itemCount: (_isSearching
+                                              ? _filteredSessions
+                                              : sessions)
+                                          .length +
+                                      (_isLoadingMoreSessions ? 1 : 0),
+                                  itemBuilder: (context, index) {
+                                    if (index ==
+                                        (_isSearching
+                                                ? _filteredSessions
+                                                : sessions)
+                                            .length) {
+                                      return Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    }
+                                    final session = _isSearching
+                                        ? _filteredSessions[index]
+                                        : sessions[index];
+                                    return _buildSessionTile(session);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+              Positioned(
+                bottom: 30,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF1E1B2C),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0xFF8B5CF6).withOpacity(0.1),
+                          blurRadius: 8,
+                        ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Color(0xFF2D2E32).withOpacity(0.3)
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _handleSearch,
-                    style: GoogleFonts.getFont(Util.appFont)
-                        .copyWith(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search chats...',
-                      hintStyle: GoogleFonts.getFont(Util.appFont)
-                          .copyWith(color: Colors.white38),
-                      prefixIcon:
-                          Icon(Icons.search, color: Colors.white38, size: 20),
-                      border: InputBorder.none,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        isSidebarCollapsed
+                            ? Icons.chevron_right
+                            : Icons.chevron_left,
+                        color: Color(0xFF8B5CF6),
+                      ),
+                      onPressed: _toggleSidebar,
+                      tooltip: isSidebarCollapsed
+                          ? 'Expand Sidebar'
+                          : 'Collapse Sidebar',
                     ),
-                    cursorColor: Color(0xFF8B5CF6),
                   ),
-                ),
-              ),
-              SizedBox(height: 16),
-              // Chat List
-              Expanded(
-                child: ListView.builder(
-                  controller: _sessionsScrollController,
-                  itemCount:
-                      (_isSearching ? _filteredSessions : sessions).length +
-                          (_isLoadingMoreSessions ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index ==
-                        (_isSearching ? _filteredSessions : sessions).length) {
-                      return Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                    }
-                    final session = _isSearching
-                        ? _filteredSessions[index]
-                        : sessions[index];
-                    return _buildSessionTile(session);
-                  },
                 ),
               ),
             ],
           ),
-        ),
+          Expanded(child: _buildChatArea()),
+        ],
       ),
     );
   }
@@ -1268,166 +1340,161 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Widget _buildChatArea() {
-    return Expanded(
-      child: Stack(
-        children: [
-          Container(
-            alignment: Alignment.center,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width / 1.1),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _streamingNotifier,
-                builder: (context, isStreaming, child) {
-                  if (_isLoadingSession) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF8B5CF6)),
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Loading chat history...',
-                            style: GoogleFonts.getFont(Util.appFont)
-                                .copyWith(color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
+    return Stack(
+      children: [
+        Container(
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width / 1.1),
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _streamingNotifier,
+              builder: (context, isStreaming, child) {
+                if (_isLoadingSession) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading chat history...',
+                          style: GoogleFonts.getFont(Util.appFont)
+                              .copyWith(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-                  return Stack(
-                    children: [
-                      Column(
-                        children: [
-                          Expanded(
-                            child: Stack(
-                              children: [
-                                CustomScrollView(
-                                  key: _listKey,
-                                  controller: _scrollController,
-                                  cacheExtent: 1000,
-                                  physics:
-                                      const AlwaysScrollableScrollPhysics(),
-                                  slivers: [
-                                    if (_isLoadingMoreChats)
-                                      SliverToBoxAdapter(
-                                        child: Center(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: CircularProgressIndicator(),
-                                          ),
+                return Stack(
+                  children: [
+                    Column(
+                      children: [
+                        Expanded(
+                          child: Stack(
+                            children: [
+                              CustomScrollView(
+                                key: _listKey,
+                                controller: _scrollController,
+                                cacheExtent: 1000,
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  if (_isLoadingMoreChats)
+                                    SliverToBoxAdapter(
+                                      child: Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: CircularProgressIndicator(),
                                         ),
                                       ),
-                                    SliverList(
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) {
-                                          if (index >= chats.length)
-                                            return null;
-                                          return RepaintBoundary(
-                                            child: KeyedSubtree(
-                                              key: ValueKey(
-                                                  'chat_${chats[index].id}'),
-                                              child: _buildChatBubble(
-                                                chats[index],
-                                                index == chats.length - 1,
-                                              ),
+                                    ),
+                                  SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) {
+                                        if (index >= chats.length) return null;
+                                        return RepaintBoundary(
+                                          child: KeyedSubtree(
+                                            key: ValueKey(
+                                                'chat_${chats[index].id}'),
+                                            child: _buildChatBubble(
+                                              chats[index],
+                                              index == chats.length - 1,
                                             ),
-                                          );
-                                        },
-                                        childCount: chats.length,
-                                      ),
+                                          ),
+                                        );
+                                      },
+                                      childCount: chats.length,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_isStreaming)
+                          Container(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF1E1B2C),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Color(0xFF8B5CF6).withOpacity(0.3),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Color(0xFF8B5CF6).withOpacity(0.1),
+                                      blurRadius: 10,
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
-                          if (_isStreaming)
-                            Container(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFF1E1B2C),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Color(0xFF8B5CF6).withOpacity(0.3),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            Color(0xFF8B5CF6).withOpacity(0.1),
-                                        blurRadius: 10,
-                                      ),
-                                    ],
+                                child: TextButton.icon(
+                                  onPressed: _stopGeneration,
+                                  icon: Icon(
+                                    Icons.stop,
+                                    size: 18,
+                                    color: Color(0xFF8B5CF6),
                                   ),
-                                  child: TextButton.icon(
-                                    onPressed: _stopGeneration,
-                                    icon: Icon(
-                                      Icons.stop,
-                                      size: 18,
+                                  label: Text(
+                                    'Stop Generating',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
                                       color: Color(0xFF8B5CF6),
                                     ),
-                                    label: Text(
-                                      'Stop Generating',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF8B5CF6),
-                                      ),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      backgroundColor:
-                                          Color(0xFF8B5CF6).withOpacity(0.05),
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 20, vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    backgroundColor:
+                                        Color(0xFF8B5CF6).withOpacity(0.05),
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 20, vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ChatInput(
-                            controller: _chatController,
-                            isStreaming: _isStreaming,
-                            selectedFiles: _selectedFiles,
-                            onSend: _sendMessage,
-                            onPickFiles: _pickFiles,
-                            onRemoveFile: _removeFile,
                           ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
+                        ChatInput(
+                          controller: _chatController,
+                          isStreaming: _isStreaming,
+                          selectedFiles: _selectedFiles,
+                          onSend: _sendMessage,
+                          onPickFiles: _pickFiles,
+                          onRemoveFile: _removeFile,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-          if (_showScrollToBottomNotifier.value)
-            Positioned(
-              right: 16,
-              bottom: 80,
-              child: FloatingActionButton(
-                mini: true,
-                backgroundColor:
-                    Color.fromARGB(82, 180, 74, 255), // Darker purple color
-                onPressed: () {
-                  _scrollToBottom();
-                  setState(() {
-                    _shouldAutoScroll = true;
-                  });
-                },
-                child: Icon(Icons.arrow_downward),
-              ),
+        ),
+        if (_showScrollToBottomNotifier.value)
+          Positioned(
+            right: 16,
+            bottom: 80,
+            child: FloatingActionButton(
+              mini: true,
+              backgroundColor:
+                  Color.fromARGB(82, 180, 74, 255), // Darker purple color
+              onPressed: () {
+                _scrollToBottom();
+                setState(() {
+                  _shouldAutoScroll = true;
+                });
+              },
+              child: Icon(Icons.arrow_downward),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 

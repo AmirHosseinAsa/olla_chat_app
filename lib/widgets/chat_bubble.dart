@@ -64,7 +64,6 @@ class _ChatBubbleState extends State<ChatBubble>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: Color(0xFF2D2E32).withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
@@ -116,7 +115,6 @@ class _ChatBubbleState extends State<ChatBubble>
         ],
       );
     }
-
     return _buildMessageText(widget.message);
   }
 
@@ -270,46 +268,69 @@ class _ChatBubbleState extends State<ChatBubble>
   }
 
   Widget _buildMessageText(String message) {
-    // If not showing thinking content, strip out the thinking tags and content first
+    // For user messages, just show the raw text
+    if (widget.isUser) {
+      return SelectableText(
+        message,
+        style: GoogleFonts.inter(
+          fontSize: 15,
+          height: 1.6,
+          color: Colors.white.withOpacity(0.78),
+        ),
+      );
+    }
+
+    // For bot messages, apply all the formatting
     if (!widget.showThinking) {
-      // Handle both complete and incomplete thinking tags during streaming
-      message = message.replaceAll(
-          RegExp(r'<think>.*?(?:</think>|$)', dotAll: true), '');
-      // Also remove any empty lines that might be left
       message = message
-          .split('\n')
-          .where((line) => line.trim().isNotEmpty)
-          .join('\n');
+          .replaceAll(
+            RegExp(r'<think>.*?</think>|<think>.*',
+                caseSensitive: false, dotAll: true),
+            '',
+          )
+          .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+          .trim();
     }
 
-    // Then handle the remaining content
-    if (widget.showThinking &&
-        (message.contains('<think>') || message.contains('</think>'))) {
-      return _buildThinkingContent(message);
-    }
+    // First handle code blocks with triple backticks
+    final codeBlockRegex = RegExp(r'```[\s\S]*?```');
+    final parts = message.split(codeBlockRegex);
+    final codeMatches = codeBlockRegex.allMatches(message).toList();
 
-    // Check if message contains code block
-    if (message.contains('```')) {
-      return _buildMessageWithCode(message);
-    }
-
-    // Otherwise parse markdown
-    return _buildMarkdownMessage(message);
-  }
-
-  Widget _buildMessageWithCode(String code) {
-    final parts = code.split(RegExp(r'```(\w+)?\n'));
     final List<Widget> widgets = [];
+    int matchIndex = 0;
 
     for (var i = 0; i < parts.length; i++) {
-      if (i % 2 == 0) {
-        // Regular text
-        if (parts[i].trim().isNotEmpty) {
-          widgets.add(_buildMarkdownMessage(parts[i]));
+      if (parts[i].trim().isNotEmpty) {
+        // Handle non-code text (may contain inline backticks)
+        if (parts[i].contains('|')) {
+          widgets.add(_buildMessageWithTable(parts[i]));
+        } else {
+          // Convert single backticks to bold before passing to markdown
+          var text = parts[i].replaceAllMapped(
+              RegExp(r'`([^`]+)`'), (match) => '**${match.group(1)}**');
+
+          if (widget.showThinking &&
+              (text.contains('<think>') || text.contains('</think>'))) {
+            widgets.add(_buildThinkingContent(text));
+          } else {
+            widgets.add(_buildMarkdownMessage(text.trim()));
+          }
         }
-      } else {
-        // Code block
-        widgets.add(_buildCodeBlock(parts[i]));
+      }
+
+      // Handle code block if there is one
+      if (matchIndex < codeMatches.length && i < parts.length - 1) {
+        final codeBlock = codeMatches[matchIndex].group(0)!;
+        // Multi-line code block
+        final code = codeBlock
+            .replaceAll(RegExp(r'^```\w*\n?'), '') // Remove opening ```
+            .replaceAll(RegExp(r'\n?```$'), '') // Remove closing ```
+            .trim();
+        if (code.isNotEmpty) {
+          widgets.add(_buildCodeBlock(code));
+        }
+        matchIndex++;
       }
     }
 
@@ -403,15 +424,12 @@ class _ChatBubbleState extends State<ChatBubble>
     // Define consistent colors and styles
     final Color textColor = Colors.white.withOpacity(0.78);
     final Color headerColor = Colors.white.withOpacity(0.92);
-    final Color tableHeaderColor = Colors.white.withOpacity(0.85);
-    final Color tableBorderColor = Colors.white.withOpacity(0.2);
 
-    bool isInTable = false;
-    List<String> tableHeaders = [];
-    List<List<String>> tableRows = [];
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
+    for (var line in lines) {
+      if (line.trim().isEmpty) {
+        spans.add(const TextSpan(text: '\n'));
+        continue;
+      }
 
       // Handle title without separator
       if (line.startsWith('Title: ')) {
@@ -447,63 +465,17 @@ class _ChatBubbleState extends State<ChatBubble>
         continue;
       }
 
-      // Skip separator lines
-      if (line.startsWith('─') || line.startsWith('—')) {
-        continue;
-      }
-
-      // Handle table
-      if (line.startsWith('|')) {
-        if (!isInTable) {
-          isInTable = true;
-          tableHeaders = _parseTableRow(line);
-          continue;
-        }
-
-        // Skip separator row with dashes
-        if (line.contains('---')) continue;
-
-        tableRows.add(_parseTableRow(line));
-
-        // If next line is not part of table, render it
-        if (i == lines.length - 1 || !lines[i + 1].startsWith('|')) {
-          spans.add(_buildTableSpan(
-            tableHeaders,
-            tableRows,
-            tableHeaderColor,
-            textColor,
-            tableBorderColor,
-          ));
-          isInTable = false;
-          tableHeaders = [];
-          tableRows = [];
-
-          // Add extra spacing after table if next line is not a separator
-          if (i < lines.length - 1 && !lines[i + 1].startsWith('---')) {
-            spans.add(const TextSpan(text: '\n'));
-          }
-          continue;
-        }
-        continue;
-      }
-
-      // Handle section separators (---)
-      if (line.startsWith('---')) {
-        spans.add(const TextSpan(text: '\n'));
-        continue;
-      }
-
       // Handle bold text without showing **
       final boldPattern = RegExp(r'\*\*(.*?)\*\*');
       var currentIndex = 0;
-      var modifiedLine = line;
       var matches = boldPattern.allMatches(line).toList();
 
       if (matches.isNotEmpty) {
         for (var match in matches) {
+          // Add text before bold
           if (match.start > currentIndex) {
             spans.add(TextSpan(
-              text: modifiedLine.substring(currentIndex, match.start),
+              text: line.substring(currentIndex, match.start),
               style: GoogleFonts.inter(
                 fontSize: 15,
                 height: 1.6,
@@ -512,6 +484,7 @@ class _ChatBubbleState extends State<ChatBubble>
             ));
           }
 
+          // Add bold text
           spans.add(TextSpan(
             text: match.group(1), // Only the text between **
             style: GoogleFonts.inter(
@@ -525,6 +498,7 @@ class _ChatBubbleState extends State<ChatBubble>
           currentIndex = match.end;
         }
 
+        // Add remaining text after last bold
         if (currentIndex < line.length) {
           spans.add(TextSpan(
             text: line.substring(currentIndex) + '\n',
@@ -536,6 +510,7 @@ class _ChatBubbleState extends State<ChatBubble>
           ));
         }
       } else {
+        // No bold text in line
         spans.add(TextSpan(
           text: line + '\n',
           style: GoogleFonts.inter(
@@ -547,81 +522,15 @@ class _ChatBubbleState extends State<ChatBubble>
       }
     }
 
-    return SelectableText.rich(
-      TextSpan(children: spans),
-      style: GoogleFonts.inter(height: 1.5),
+    return Container(
+      width: double.infinity,
+      child: SelectableText.rich(
+        TextSpan(children: spans),
+        style: GoogleFonts.inter(height: 1.5),
+        textAlign: TextAlign.left,
+        enableInteractiveSelection: true,
+      ),
     );
-  }
-
-  List<String> _parseTableRow(String line) {
-    return line
-        .split('|')
-        .skip(1)
-        .take(line.split('|').length - 2)
-        .map((cell) => cell.trim())
-        .toList();
-  }
-
-  TextSpan _buildTableSpan(
-    List<String> headers,
-    List<List<String>> rows,
-    Color headerColor,
-    Color textColor,
-    Color borderColor,
-  ) {
-    List<InlineSpan> tableSpans = [
-      const TextSpan(text: '\n\n')
-    ]; // Extra spacing before table
-
-    // Calculate column widths based on content
-    List<int> columnWidths = List.filled(headers.length, 0);
-
-    // Get max width for each column including headers
-    for (var i = 0; i < headers.length; i++) {
-      columnWidths[i] = headers[i].length;
-      for (var row in rows) {
-        if (i < row.length && row[i].length > columnWidths[i]) {
-          columnWidths[i] = row[i].length;
-        }
-      }
-      // Add padding
-      columnWidths[i] += 4;
-    }
-
-    // Add headers
-    for (var i = 0; i < headers.length; i++) {
-      tableSpans.add(TextSpan(
-        text: headers[i].padRight(columnWidths[i]),
-        style: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: headerColor,
-          height: 1.8,
-        ),
-      ));
-    }
-    tableSpans.add(const TextSpan(text: '\n'));
-
-    // Add rows with proper spacing
-    for (var row in rows) {
-      // Add some vertical spacing between rows
-      tableSpans.add(const TextSpan(text: '\n'));
-
-      for (var i = 0; i < row.length; i++) {
-        tableSpans.add(TextSpan(
-          text: row[i].padRight(columnWidths[i]),
-          style: GoogleFonts.inter(
-            fontSize: 15,
-            height: 1.6,
-            color: textColor,
-          ),
-        ));
-      }
-    }
-
-    // Add extra spacing after table
-    tableSpans.add(const TextSpan(text: '\n'));
-    return TextSpan(children: tableSpans);
   }
 
   Widget _buildThinkingContent(String message) {
@@ -677,6 +586,140 @@ class _ChatBubbleState extends State<ChatBubble>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: widgets,
+    );
+  }
+
+  Widget _buildMessageWithTable(String message) {
+    final lines = message.split('\n');
+    final List<Widget> widgets = [];
+    List<String> tableLines = [];
+    bool inTable = false;
+
+    for (String line in lines) {
+      if (line.trim().startsWith('|')) {
+        inTable = true;
+        tableLines.add(line);
+      } else {
+        if (inTable) {
+          // Render collected table
+          widgets.add(_buildTable(tableLines));
+          tableLines = [];
+          inTable = false;
+        }
+        if (line.trim().isNotEmpty) {
+          widgets.add(_buildMarkdownMessage(line));
+        }
+      }
+    }
+
+    // Handle table at end of message
+    if (tableLines.isNotEmpty) {
+      widgets.add(_buildTable(tableLines));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  Widget _buildTable(List<String> tableLines) {
+    try {
+      final rows = tableLines
+          .where((line) => line.trim().startsWith('|') && !line.contains('---'))
+          .map((line) {
+        final cells = line
+            .split('|')
+            .skip(1)
+            .take(line.split('|').length - 2)
+            .map((cell) => cell.trim())
+            .toList();
+        return cells;
+      }).toList();
+
+      if (rows.isEmpty) return SizedBox();
+
+      final headers = rows.removeAt(0);
+
+      // During streaming, ensure all rows have same number of cells as headers
+      final normalizedRows = rows.map((row) {
+        if (row.length < headers.length) {
+          return [...row, ...List.filled(headers.length - row.length, '')];
+        } else if (row.length > headers.length) {
+          return row.take(headers.length).toList();
+        }
+        return row;
+      }).toList();
+
+      return Container(
+        margin: EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor:
+                MaterialStateProperty.all(Colors.white.withOpacity(0.1)),
+            columns: headers
+                .map((header) => DataColumn(
+                      label: SelectableText(
+                        header,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ))
+                .toList(),
+            rows: normalizedRows
+                .map((row) => DataRow(
+                      cells: row
+                          .map((cell) => DataCell(
+                                SelectableText(
+                                  cell,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white.withOpacity(0.8),
+                                  ),
+                                ),
+                              ))
+                          .toList(),
+                    ))
+                .toList(),
+          ),
+        ),
+      );
+    } catch (e) {
+      // Fallback to text representation during streaming
+      return SelectableText(
+        tableLines.join('\n'),
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 13,
+          height: 1.5,
+          color: Colors.white.withOpacity(0.9),
+        ),
+      );
+    }
+  }
+
+  // Add new method for inline code
+  Widget _buildInlineCode(String code) {
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Color(0xFF16161A),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Color(0xFF2D2E32)),
+      ),
+      child: SelectableText(
+        code,
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 13,
+          color: Colors.white.withOpacity(0.9),
+        ),
+      ),
     );
   }
 }
