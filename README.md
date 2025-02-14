@@ -29,8 +29,8 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 
 - [X] Togglable sidebar
 - [X] Better formating
-- [ ] active Ollama if not enabled already
-- [ ] save attached file location for regenrate response
+- [X] active Ollama if not enabled already
+- [X] save attached file location for regenrate response
 - [ ] pdf/doc support
 - [ ] connect to google acount 
 - [ ] update data to google account

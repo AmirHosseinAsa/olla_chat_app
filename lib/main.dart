@@ -4,6 +4,7 @@ import 'package:window_manager/window_manager.dart';
 import 'providers/theme_provider.dart';
 import 'objectbox/objectbox.dart';
 import 'pages/chat_page.dart';
+import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

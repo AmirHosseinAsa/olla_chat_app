@@ -13,6 +13,8 @@ class Chat {
   bool isEdited;
   String? originalMessage;
 
+  List<String> attachedFilesPath;
+
   final chatSession = ToOne<ChatSession>();
 
   Chat({
@@ -22,6 +24,7 @@ class Chat {
     required this.timestamp,
     this.isEdited = false,
     this.originalMessage,
+    this.attachedFilesPath = const [],
   });
 }
 

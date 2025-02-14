@@ -148,6 +148,8 @@ class _ChatPageState extends State<ChatPage>
 
   // Add these to the _ChatPageState class properties
   Timer? _debounceTimer;
+  final ValueNotifier<bool> _ollamaAvailable = ValueNotifier<bool>(false);
+  final ValueNotifier<String> _ollamaError = ValueNotifier<String>('');
 
   @override
   void initState() {
@@ -211,6 +213,9 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Future<void> _loadAvailableModels() async {
+    // activate ollama
+    // Process.run('ollama', ['list']);
+
     try {
       final response = await _ollamaClient.listModels();
       final prefs = await SharedPreferences.getInstance();
@@ -231,8 +236,24 @@ class _ChatPageState extends State<ChatPage>
           }
         }
       });
+      _ollamaAvailable.value = true;
+      _ollamaError.value = '';
     } catch (e) {
-      print('Error loading models: $e');
+      // print('Error loading models: $e');
+      _ollamaAvailable.value = false;
+      if (e.toString().contains('Connection refused')) {
+        _ollamaError.value =
+            'Ollama is not running. Please start Ollama and try again.';
+      } else if (e.toString().contains('No models available')) {
+        _ollamaError.value =
+            'No models installed. Please install a model from the Models page.';
+      } else {
+        _ollamaError.value = 'Make sure Ollama is running and try again.';
+      }
+      setState(() {
+        availableModels = [];
+        selectedModel = null;
+      });
     }
   }
 
@@ -252,6 +273,16 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Future<void> _sendMessage(String message) async {
+    if (!_ollamaAvailable.value) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_ollamaError.value),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if ((message.trim().isEmpty && _selectedFiles.isEmpty) ||
         selectedModel == null) return;
 
@@ -262,6 +293,7 @@ class _ChatPageState extends State<ChatPage>
     String fullMessage = message;
     String visibleMessage = message;
     List<Map<String, dynamic>> messages = [];
+    List<String> filePaths = [];
 
     // Handle file attachments
     if (_selectedFiles.isNotEmpty) {
@@ -270,6 +302,10 @@ class _ChatPageState extends State<ChatPage>
 
       for (var file in _selectedFiles) {
         try {
+          if (file.path != null) {
+            filePaths.add(file.path!);
+          }
+
           if (_isImageFile(file.extension ?? '')) {
             // For images, create a special message format
             visibleMessage += '\n- ${file.name} (Image)';
@@ -320,6 +356,7 @@ class _ChatPageState extends State<ChatPage>
       message: visibleMessage,
       isUserMessage: true,
       timestamp: DateTime.now(),
+      attachedFilesPath: filePaths,
     );
     userChat.chatSession.target = currentSession;
     chatBox.put(userChat);
@@ -587,15 +624,115 @@ class _ChatPageState extends State<ChatPage>
       chatBox.put(botChat);
     });
 
-    // Create messages array with the user message
-    List<Map<String, dynamic>> messages = [
-      {
-        "role": "user",
-        "content": userChat.message,
+    String fullMessage = userChat.message;
+    List<Map<String, dynamic>> messages = [];
+    // Load content from saved file paths
+    if (userChat.attachedFilesPath.isNotEmpty) {
+      for (var filePath in userChat.attachedFilesPath) {
+        try {
+          final file = File(filePath);
+          if (!await file.exists()) {
+            print('File not found: $filePath');
+            continue;
+          }
+
+          final fileName = file.path.split(Platform.pathSeparator).last;
+          final extension = fileName.split('.').last.toLowerCase();
+
+          if (_isImageFile(extension)) {
+            // Handle image files
+            final bytes = await file.readAsBytes();
+            final base64Image = base64Encode(bytes);
+
+            messages.add({
+              "role": "user",
+              "content": [
+                {"type": "image", "data": base64Image},
+                {"type": "text", "data": "What's shown in this image?"}
+              ]
+            });
+          } else {
+            // Handle text-based files
+            final content = await _readDocumentContentFromPath(filePath);
+            if (content != null) {
+              fullMessage += '\n$fileName:\n```$extension\n$content\n```\n';
+            }
+          }
+        } catch (e) {
+          print('Error loading file $filePath: $e');
+        }
       }
-    ];
+    }
+
+    // Add the message content
+    messages.add({
+      "role": "user",
+      "content": fullMessage,
+    });
 
     await _generateResponse(userChat, botChat, messages);
+  }
+
+  // Add helper method to read document content from path
+  Future<String?> _readDocumentContentFromPath(String filePath) async {
+    try {
+      final file = File(filePath);
+      final extension = filePath.split('.').last.toLowerCase();
+
+      switch (extension) {
+        case 'pdf':
+          final document = PdfDocument(inputBytes: await file.readAsBytes());
+          final PdfTextExtractor extractor = PdfTextExtractor(document);
+          final String text = extractor.extractText();
+          document.dispose();
+          return text;
+
+        case 'doc':
+        case 'docx':
+          final bytes = await file.readAsBytes();
+          return docxToText(bytes);
+
+        case 'xls':
+        case 'xlsx':
+          final bytes = await file.readAsBytes();
+          final ex = excel.Excel.decodeBytes(bytes);
+          final buffer = StringBuffer();
+
+          for (var table in ex.tables.keys) {
+            buffer.writeln('Sheet: $table');
+            for (var row in ex.tables[table]!.rows) {
+              buffer.writeln(
+                  row.map((cell) => cell?.value.toString() ?? '').join('\t'));
+            }
+            buffer.writeln();
+          }
+          return buffer.toString();
+
+        case 'txt':
+        case 'json':
+        case 'md':
+        case 'py':
+        case 'js':
+        case 'java':
+        case 'cpp':
+        case 'cs':
+        case 'html':
+        case 'css':
+        case 'xml':
+        case 'yaml':
+        case 'ini':
+        case 'toml':
+        case 'htm':
+          return await file.readAsString();
+
+        default:
+          print('Unsupported file type: $extension');
+          return null;
+      }
+    } catch (e) {
+      print('Error reading file content: $e');
+      return null;
+    }
   }
 
   // Function to edit message
@@ -770,6 +907,8 @@ class _ChatPageState extends State<ChatPage>
     _sessionsScrollController.dispose();
     _thinkingAnimationController.dispose();
     _searchController.dispose();
+    _ollamaAvailable.dispose();
+    _ollamaError.dispose();
     super.dispose();
   }
 
@@ -971,6 +1110,36 @@ class _ChatPageState extends State<ChatPage>
                   },
                 ),
               ),
+            ValueListenableBuilder<String>(
+              valueListenable: _ollamaError,
+              builder: (context, error, child) {
+                if (error.isNotEmpty) {
+                  return Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          error,
+                          style: GoogleFonts.getFont(
+                            Util.appFont,
+                            fontSize: 14,
+                            color: Colors.red,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.refresh, color: Colors.white70),
+                        onPressed: _loadAvailableModels,
+                        tooltip: 'Refresh models',
+                      ),
+                    ],
+                  );
+                }
+                return SizedBox();
+              },
+            ),
           ],
         ),
         actions: [
@@ -1003,11 +1172,13 @@ class _ChatPageState extends State<ChatPage>
               color: Theme.of(context).iconTheme.color,
               size: 22,
             ),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => ModelsPage()),
               );
+              // Refresh models when returning from Models page
+              _loadAvailableModels();
             },
             tooltip: 'Manage Models',
           ),
@@ -1348,130 +1519,180 @@ class _ChatPageState extends State<ChatPage>
             constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width / 1.1),
             child: ValueListenableBuilder<bool>(
-              valueListenable: _streamingNotifier,
-              builder: (context, isStreaming, child) {
-                if (_isLoadingSession) {
+              valueListenable: _ollamaAvailable,
+              builder: (context, isOllamaAvailable, child) {
+                if (!isOllamaAvailable) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
                         ),
                         SizedBox(height: 16),
                         Text(
-                          'Loading chat history...',
-                          style: GoogleFonts.getFont(Util.appFont)
-                              .copyWith(color: Colors.white70),
+                          _ollamaError.value,
+                          style: GoogleFonts.getFont(
+                            Util.appFont,
+                            fontSize: 16,
+                            color: Colors.red,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _loadAvailableModels,
+                          icon: Icon(Icons.refresh),
+                          label: Text('Retry Connection'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color.fromARGB(255, 46, 10, 129),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   );
                 }
 
-                return Stack(
-                  children: [
-                    Column(
+                return ValueListenableBuilder<bool>(
+                  valueListenable: _streamingNotifier,
+                  builder: (context, isStreaming, child) {
+                    if (_isLoadingSession) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF8B5CF6)),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Loading chat history...',
+                              style: GoogleFonts.getFont(Util.appFont)
+                                  .copyWith(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Stack(
                       children: [
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              CustomScrollView(
-                                key: _listKey,
-                                controller: _scrollController,
-                                cacheExtent: 1000,
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                slivers: [
-                                  if (_isLoadingMoreChats)
-                                    SliverToBoxAdapter(
-                                      child: Center(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      ),
-                                    ),
-                                  SliverList(
-                                    delegate: SliverChildBuilderDelegate(
-                                      (context, index) {
-                                        if (index >= chats.length) return null;
-                                        return RepaintBoundary(
-                                          child: KeyedSubtree(
-                                            key: ValueKey(
-                                                'chat_${chats[index].id}'),
-                                            child: _buildChatBubble(
-                                              chats[index],
-                                              index == chats.length - 1,
+                        Column(
+                          children: [
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  CustomScrollView(
+                                    key: _listKey,
+                                    controller: _scrollController,
+                                    cacheExtent: 1000,
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    slivers: [
+                                      if (_isLoadingMoreChats)
+                                        SliverToBoxAdapter(
+                                          child: Center(
+                                            child: Padding(
+                                              padding: EdgeInsets.all(8.0),
+                                              child:
+                                                  CircularProgressIndicator(),
                                             ),
                                           ),
-                                        );
-                                      },
-                                      childCount: chats.length,
-                                    ),
+                                        ),
+                                      SliverList(
+                                        delegate: SliverChildBuilderDelegate(
+                                          (context, index) {
+                                            if (index >= chats.length)
+                                              return null;
+                                            return RepaintBoundary(
+                                              child: KeyedSubtree(
+                                                key: ValueKey(
+                                                    'chat_${chats[index].id}'),
+                                                child: _buildChatBubble(
+                                                  chats[index],
+                                                  index == chats.length - 1,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          childCount: chats.length,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                        if (_isStreaming)
-                          Container(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Center(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF1E1B2C),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Color(0xFF8B5CF6).withOpacity(0.3),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Color(0xFF8B5CF6).withOpacity(0.1),
-                                      blurRadius: 10,
-                                    ),
-                                  ],
-                                ),
-                                child: TextButton.icon(
-                                  onPressed: _stopGeneration,
-                                  icon: Icon(
-                                    Icons.stop,
-                                    size: 18,
-                                    color: Color(0xFF8B5CF6),
-                                  ),
-                                  label: Text(
-                                    'Stop Generating',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF8B5CF6),
-                                    ),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    backgroundColor:
-                                        Color(0xFF8B5CF6).withOpacity(0.05),
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 20, vertical: 10),
-                                    shape: RoundedRectangleBorder(
+                            ),
+                            if (_isStreaming)
+                              Container(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFF1E1B2C),
                                       borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color:
+                                            Color(0xFF8B5CF6).withOpacity(0.3),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Color(0xFF8B5CF6)
+                                              .withOpacity(0.1),
+                                          blurRadius: 10,
+                                        ),
+                                      ],
+                                    ),
+                                    child: TextButton.icon(
+                                      onPressed: _stopGeneration,
+                                      icon: Icon(
+                                        Icons.stop,
+                                        size: 18,
+                                        color: Color(0xFF8B5CF6),
+                                      ),
+                                      label: Text(
+                                        'Stop Generating',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF8B5CF6),
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        backgroundColor:
+                                            Color(0xFF8B5CF6).withOpacity(0.05),
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 10),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
+                            ChatInput(
+                              controller: _chatController,
+                              isStreaming: _isStreaming,
+                              selectedFiles: _selectedFiles,
+                              onSend: _sendMessage,
+                              onPickFiles: _pickFiles,
+                              onRemoveFile: _removeFile,
                             ),
-                          ),
-                        ChatInput(
-                          controller: _chatController,
-                          isStreaming: _isStreaming,
-                          selectedFiles: _selectedFiles,
-                          onSend: _sendMessage,
-                          onPickFiles: _pickFiles,
-                          onRemoveFile: _removeFile,
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 );
               },
             ),

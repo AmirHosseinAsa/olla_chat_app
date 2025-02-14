@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ollama_dart/ollama_dart.dart';
@@ -46,7 +48,7 @@ class _ModelsPageState extends State<ModelsPage> {
       builder: (context) => AlertDialog(
         title: Text('Delete Model', style: GoogleFonts.getFont(Util.appFont)),
         content: Text(
-          'Are you sure you want to delete $modelName?\n\nCommand to run in terminal:\nollama rm $modelName',
+          'Are you sure you want to delete $modelName?',
           style: GoogleFonts.getFont(Util.appFont),
         ),
         actions: [
@@ -54,19 +56,26 @@ class _ModelsPageState extends State<ModelsPage> {
             onPressed: () => Navigator.pop(context, false),
             child: Text('Cancel', style: GoogleFonts.getFont(Util.appFont)),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete', style: GoogleFonts.getFont(Util.appFont)),
+          ),
         ],
       ),
     );
 
     if (confirmed == true) {
+      if (Platform.isWindows) {
+        await Process.run(
+            'cmd', ['/c', 'start', 'cmd', '/k', 'ollama rm $modelName']);
+      } else {
+        await Process.run(
+            'sh', ['-c', 'open -a Terminal . && ollama rm $modelName']);
+      }
+
       setState(() {
         _downloadedModels.removeWhere((m) => m.model == modelName);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Please run the command in your terminal to complete deletion')),
-      );
     }
   }
 
@@ -162,22 +171,41 @@ class _ModelsPageState extends State<ModelsPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _buildStep(
-                                      '1. Visit the Ollama Model Library:',
-                                      trailing: ElevatedButton.icon(
-                                        onPressed: () => _launchUrl(
-                                            'https://ollama.ai/library'),
-                                        icon: Icon(
-                                          Icons.open_in_new,
-                                          size: 16,
-                                          color: Colors.white,
-                                        ),
-                                        label: Text('Open Model Library'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xFF8B5CF6),
-                                          foregroundColor: Colors.white,
-                                        ),
-                                      ),
-                                    ),
+                                        '1. Visit the Ollama Model Library:',
+                                        trailing: Row(
+                                          children: [
+                                            ElevatedButton.icon(
+                                              onPressed: () => _launchUrl(
+                                                  'https://ollama.ai/library'),
+                                              icon: Icon(
+                                                Icons.open_in_new,
+                                                size: 16,
+                                                color: Colors.white,
+                                              ),
+                                              label: Text('Open Model Library'),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Color(0xFF8B5CF6),
+                                                foregroundColor: Colors.white,
+                                              ),
+                                            ),
+                                            SizedBox(width: 10),
+                                            ElevatedButton(
+                                              onPressed: () async {
+                                                if (Platform.isWindows) {
+                                                  await Process.run('cmd',
+                                                      ['/c', 'start', 'cmd']);
+                                                } else {
+                                                  await Process.run('sh', [
+                                                    '-c',
+                                                    'open -a Terminal . && ollama list'
+                                                  ]);
+                                                }
+                                              },
+                                              child: Text('Open Terminal'),
+                                            ),
+                                          ],
+                                        )),
                                     _buildStep(
                                         '2. Find a model you want to use'),
                                     _buildStep(
