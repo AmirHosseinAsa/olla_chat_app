@@ -214,7 +214,7 @@ class _ChatPageState extends State<ChatPage>
 
   Future<void> _loadAvailableModels() async {
     // activate ollama
-    // Process.run('ollama', ['list']);
+    Process.run('ollama', ['list']);
 
     try {
       final response = await _ollamaClient.listModels();
@@ -1110,36 +1110,36 @@ class _ChatPageState extends State<ChatPage>
                   },
                 ),
               ),
-            ValueListenableBuilder<String>(
-              valueListenable: _ollamaError,
-              builder: (context, error, child) {
-                if (error.isNotEmpty) {
-                  return Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red, size: 20),
-                      SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          error,
-                          style: GoogleFonts.getFont(
-                            Util.appFont,
-                            fontSize: 14,
-                            color: Colors.red,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.refresh, color: Colors.white70),
-                        onPressed: _loadAvailableModels,
-                        tooltip: 'Refresh models',
-                      ),
-                    ],
-                  );
-                }
-                return SizedBox();
-              },
-            ),
+            // ValueListenableBuilder<String>(
+            //   valueListenable: _ollamaError,
+            //   builder: (context, error, child) {
+            //     if (error.isNotEmpty) {
+            //       return Row(
+            //         children: [
+            //           Icon(Icons.error_outline, color: Colors.red, size: 20),
+            //           SizedBox(width: 8),
+            //           Flexible(
+            //             child: Text(
+            //               error,
+            //               style: GoogleFonts.getFont(
+            //                 Util.appFont,
+            //                 fontSize: 14,
+            //                 color: Colors.red,
+            //               ),
+            //               overflow: TextOverflow.ellipsis,
+            //             ),
+            //           ),
+            //           IconButton(
+            //             icon: Icon(Icons.refresh, color: Colors.white70),
+            //             onPressed: _loadAvailableModels,
+            //             tooltip: 'Refresh models',
+            //           ),
+            //         ],
+            //       );
+            //     }
+            //     return SizedBox();
+            //   },
+            // ),
           ],
         ),
         actions: [
