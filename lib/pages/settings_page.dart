@@ -303,6 +303,8 @@ class _SettingsPageState extends State<SettingsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Data imported successfully')),
         );
+        // Pop back to chat page and force reload
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -381,6 +383,54 @@ class _SettingsPageState extends State<SettingsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error uploading to Google Drive: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _clearAllData() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Clear All Data', style: GoogleFonts.getFont(Util.appFont)),
+        content: Text(
+          'This will permanently delete all chat sessions and messages. This action cannot be undone. Are you sure?',
+          style: GoogleFonts.getFont(Util.appFont),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.getFont(Util.appFont)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete All',
+                style: GoogleFonts.getFont(Util.appFont)
+                    .copyWith(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        objectbox.store.runInTransaction(TxMode.write, () {
+          _sessionBox.removeAll();
+          _chatBox.removeAll();
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('All data cleared successfully')),
+          );
+          // Pop back to chat page and force reload
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error clearing data: $e')),
+          );
+        }
       }
     }
   }
@@ -547,6 +597,12 @@ class _SettingsPageState extends State<SettingsPage> {
                           'Import Data',
                           Icons.download,
                           _importData,
+                        ),
+                        Divider(height: 1),
+                        _buildActionTile(
+                          'Clear All Data',
+                          Icons.delete_forever,
+                          _clearAllData,
                         ),
                         // Divider(height: 1),
                         // _buildActionTile(

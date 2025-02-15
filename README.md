@@ -31,13 +31,14 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 - [X] Better formating
 - [X] active Ollama if not enabled already
 - [X] save attached file location for regenrate response
-- [ ] pdf/doc support
+- [X] pdf/doc support
+- [X] install models via app
+- [X] clear history
+- [ ] add vision support
 - [ ] connect to google acount 
 - [ ] update data to google account
-- [ ] install models via app
-- [ ] clear history
 - [ ] relase app build
-- [ ] make toturial 
+- [ ] make toturial video
 - [ ] Text to speech
 - [ ] Web search
 - [ ] add dark and white mode

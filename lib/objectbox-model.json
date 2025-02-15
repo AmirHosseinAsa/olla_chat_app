@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:5013505523360421892",
-      "lastPropertyId": "7:5341085752727922260",
+      "lastPropertyId": "9:2845209706780752825",
       "name": "Chat",
       "properties": [
         {
@@ -46,6 +46,16 @@
           "id": "7:5341085752727922260",
           "name": "originalMessage",
           "type": 9
+        },
+        {
+          "id": "8:3360616801194391790",
+          "name": "attachedFilesPathJson",
+          "type": 9
+        },
+        {
+          "id": "9:2845209706780752825",
+          "name": "attachedFilesPath",
+          "type": 30
         }
       ],
       "relations": []

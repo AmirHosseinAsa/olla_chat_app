@@ -626,40 +626,59 @@ class _ChatPageState extends State<ChatPage>
 
     String fullMessage = userChat.message;
     List<Map<String, dynamic>> messages = [];
+
     // Load content from saved file paths
     if (userChat.attachedFilesPath.isNotEmpty) {
+      fullMessage += '\n\nAttached Files:';
+
       for (var filePath in userChat.attachedFilesPath) {
         try {
           final file = File(filePath);
           if (!await file.exists()) {
             print('File not found: $filePath');
+            fullMessage += '\n- [File not found: $filePath]';
             continue;
           }
 
           final fileName = file.path.split(Platform.pathSeparator).last;
           final extension = fileName.split('.').last.toLowerCase();
 
+          fullMessage += '\n- $fileName (${extension.toUpperCase()})';
+
           if (_isImageFile(extension)) {
             // Handle image files
-            final bytes = await file.readAsBytes();
-            final base64Image = base64Encode(bytes);
+            try {
+              final bytes = await file.readAsBytes();
+              final base64Image = base64Encode(bytes);
 
-            messages.add({
-              "role": "user",
-              "content": [
-                {"type": "image", "data": base64Image},
-                {"type": "text", "data": "What's shown in this image?"}
-              ]
-            });
+              messages.add({
+                "role": "user",
+                "content": [
+                  {"type": "image", "data": base64Image},
+                  {"type": "text", "data": "What's shown in this image?"}
+                ]
+              });
+            } catch (e) {
+              print('Error reading image file $fileName: $e');
+              fullMessage += ' [Error reading image file]';
+            }
           } else {
             // Handle text-based files
-            final content = await _readDocumentContentFromPath(filePath);
-            if (content != null) {
-              fullMessage += '\n$fileName:\n```$extension\n$content\n```\n';
+            try {
+              final content = await _readDocumentContentFromPath(filePath);
+              if (content != null) {
+                fullMessage += '\n```$extension\n$content\n```\n';
+              } else {
+                fullMessage += ' [Unsupported file type]';
+              }
+            } catch (e) {
+              print('Error reading file $fileName: $e');
+              fullMessage += ' [Error reading file content]';
             }
           }
         } catch (e) {
-          print('Error loading file $filePath: $e');
+          print('Error processing file $filePath: $e');
+          fullMessage += '\n- [Error processing file: $filePath]';
         }
       }
     }
@@ -677,6 +696,11 @@ class _ChatPageState extends State<ChatPage>
   Future<String?> _readDocumentContentFromPath(String filePath) async {
     try {
       final file = File(filePath);
+      if (!await file.exists()) {
+        print('File not found: $filePath');
+        return null;
+      }
+
       final extension = filePath.split('.').last.toLowerCase();
 
       switch (extension) {
@@ -1110,36 +1134,6 @@ class _ChatPageState extends State<ChatPage>
                   },
                 ),
               ),
-            // ValueListenableBuilder<String>(
-            //   valueListenable: _ollamaError,
-            //   builder: (context, error, child) {
-            //     if (error.isNotEmpty) {
-            //       return Row(
-            //         children: [
-            //           Icon(Icons.error_outline, color: Colors.red, size: 20),
-            //           SizedBox(width: 8),
-            //           Flexible(
-            //             child: Text(
-            //               error,
-            //               style: GoogleFonts.getFont(
-            //                 Util.appFont,
-            //                 fontSize: 14,
-            //                 color: Colors.red,
-            //               ),
-            //               overflow: TextOverflow.ellipsis,
-            //             ),
-            //           ),
-            //           IconButton(
-            //             icon: Icon(Icons.refresh, color: Colors.white70),
-            //             onPressed: _loadAvailableModels,
-            //             tooltip: 'Refresh models',
-            //           ),
-            //         ],
-            //       );
-            //     }
-            //     return SizedBox();
-            //   },
-            // ),
           ],
         ),
         actions: [
@@ -1189,11 +1183,20 @@ class _ChatPageState extends State<ChatPage>
               color: Theme.of(context).iconTheme.color,
               size: 22,
             ),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final shouldReload = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => SettingsPage()),
               );
+              // If data was cleared, reload sessions and reset current state
+              if (shouldReload == true) {
+                setState(() {
+                  currentSession = null;
+                  chats = [];
+                  sessions = [];
+                });
+                _loadSessions();
+              }
             },
             tooltip: 'Settings',
           ),

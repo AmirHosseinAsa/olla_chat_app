@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:objectbox/objectbox.dart';
 
 @Entity()
@@ -13,7 +14,15 @@ class Chat {
   bool isEdited;
   String? originalMessage;
 
-  List<String> attachedFilesPath;
+  @Property()
+  String attachedFilesPathJson = '[]';
+
+  List<String> get attachedFilesPath =>
+      List<String>.from(jsonDecode(attachedFilesPathJson));
+
+  set attachedFilesPath(List<String> value) {
+    attachedFilesPathJson = jsonEncode(value);
+  }
 
   final chatSession = ToOne<ChatSession>();
 
@@ -24,8 +33,10 @@ class Chat {
     required this.timestamp,
     this.isEdited = false,
     this.originalMessage,
-    this.attachedFilesPath = const [],
-  });
+    List<String> attachedFilesPath = const [],
+  }) {
+    this.attachedFilesPath = attachedFilesPath;
+  }
 }
 
 @Entity()

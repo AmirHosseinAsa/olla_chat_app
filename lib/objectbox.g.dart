@@ -23,7 +23,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
       id: const obx_int.IdUid(1, 5013505523360421892),
       name: 'Chat',
-      lastPropertyId: const obx_int.IdUid(7, 5341085752727922260),
+      lastPropertyId: const obx_int.IdUid(9, 2845209706780752825),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
@@ -62,6 +62,16 @@ final _entities = <obx_int.ModelEntity>[
             id: const obx_int.IdUid(7, 5341085752727922260),
             name: 'originalMessage',
             type: 9,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(8, 3360616801194391790),
+            name: 'attachedFilesPathJson',
+            type: 9,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(9, 2845209706780752825),
+            name: 'attachedFilesPath',
+            type: 30,
             flags: 0)
       ],
       relations: <obx_int.ModelRelation>[],
@@ -180,7 +190,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
           final originalMessageOffset = object.originalMessage == null
               ? null
               : fbb.writeString(object.originalMessage!);
-          fbb.startTable(8);
+          final attachedFilesPathJsonOffset =
+              fbb.writeString(object.attachedFilesPathJson);
+          final attachedFilesPathOffset = fbb.writeList(object.attachedFilesPath
+              .map(fbb.writeString)
+              .toList(growable: false));
+          fbb.startTable(10);
           fbb.addInt64(0, object.id);
           fbb.addOffset(1, messageOffset);
           fbb.addBool(2, object.isUserMessage);
@@ -188,6 +203,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
           fbb.addInt64(4, object.chatSession.targetId);
           fbb.addBool(5, object.isEdited);
           fbb.addOffset(6, originalMessageOffset);
+          fbb.addOffset(7, attachedFilesPathJsonOffset);
+          fbb.addOffset(8, attachedFilesPathOffset);
           fbb.finish(fbb.endTable());
           return object.id;
         },
@@ -207,13 +224,21 @@ obx_int.ModelDefinition getObjectBoxModel() {
           final originalMessageParam =
               const fb.StringReader(asciiOptimization: true)
                   .vTableGetNullable(buffer, rootOffset, 16);
+          final attachedFilesPathParam = const fb.ListReader<String>(
+                  fb.StringReader(asciiOptimization: true),
+                  lazy: false)
+              .vTableGet(buffer, rootOffset, 20, []);
           final object = Chat(
               id: idParam,
               message: messageParam,
               isUserMessage: isUserMessageParam,
               timestamp: timestampParam,
               isEdited: isEditedParam,
-              originalMessage: originalMessageParam);
+              originalMessage: originalMessageParam,
+              attachedFilesPath: attachedFilesPathParam)
+            ..attachedFilesPathJson =
+                const fb.StringReader(asciiOptimization: true)
+                    .vTableGet(buffer, rootOffset, 18, '');
           object.chatSession.targetId =
               const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0);
           object.chatSession.attach(store);
@@ -325,6 +350,14 @@ class Chat_ {
   /// See [Chat.originalMessage].
   static final originalMessage =
       obx.QueryStringProperty<Chat>(_entities[0].properties[6]);
+
+  /// See [Chat.attachedFilesPathJson].
+  static final attachedFilesPathJson =
+      obx.QueryStringProperty<Chat>(_entities[0].properties[7]);
+
+  /// See [Chat.attachedFilesPath].
+  static final attachedFilesPath =
+      obx.QueryStringVectorProperty<Chat>(_entities[0].properties[8]);
 }
 
 /// [ChatSession] entity fields to define ObjectBox queries.
