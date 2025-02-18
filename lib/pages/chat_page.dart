@@ -92,12 +92,12 @@ class _ChatPageState extends State<ChatPage>
     'xlsx',
     'ppt',
     'pptx',
-    // 'jpg',
-    // 'jpeg',
-    // 'png',
-    // 'gif',
-    // 'webp',
-    // 'bmp',
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'webp',
+    'bmp',
   };
 
   // Add scroll controller
@@ -290,9 +290,10 @@ class _ChatPageState extends State<ChatPage>
       _createNewSession();
     }
 
-    String fullMessage = message;
+
+    String fullMessage ="Current date and time: " + DateTime.now().toString() + "\n" + message;
     String visibleMessage = message;
-    List<Map<String, dynamic>> messages = [];
+    List<Message> messages = [];
     List<String> filePaths = [];
 
     // Handle file attachments
@@ -315,13 +316,12 @@ class _ChatPageState extends State<ChatPage>
             final bytes = await File(file.path!).readAsBytes();
             final base64Image = base64Encode(bytes);
 
-            messages.add({
-              "role": "user",
-              "content": [
-                {"type": "image", "data": base64Image},
-                {"type": "text", "data": "What's shown in this image?"}
-              ]
-            });
+            messages.add(Message(
+              role: MessageRole.user,
+              content:
+                  message.isEmpty ? "What's shown in this image?" : message,
+              images: [base64Image],
+            ));
           } else {
             // For text files and documents, only show name in visible message
             visibleMessage += '\n- ${file.name} (${file.extension})';
@@ -344,12 +344,12 @@ class _ChatPageState extends State<ChatPage>
       }
     }
 
-    // Add the user's text message if not empty
-    if (message.trim().isNotEmpty) {
-      messages.add({
-        "role": "user",
-        "content": fullMessage,
-      });
+    // Add the user's text message if not empty and no images were added
+    if (message.trim().isNotEmpty && messages.isEmpty) {
+      messages.add(Message(
+        role: MessageRole.user,
+        content: fullMessage,
+      ));
     }
 
     final userChat = Chat(
@@ -386,14 +386,13 @@ class _ChatPageState extends State<ChatPage>
       _selectedFiles.clear();
     });
 
+    // Get system prompt
+    final prefs = await SharedPreferences.getInstance();
+    final systemPrompt = prefs.getString('systemPrompt') ??
+        'You are a helpful AI assistant. Be concise and clear in your responses.';
+    final temperature = prefs.getDouble('temperature') ?? 0.7;
+
     // Generate response using the messages array
-    await _generateResponse(userChat, botChat, messages);
-  }
-
-  Future<void> _generateResponse(
-      Chat userChat, Chat botChat, List<Map<String, dynamic>> messages) async {
-    if (selectedModel == null) return;
-
     try {
       await _streamSubscription?.cancel();
 
@@ -403,88 +402,40 @@ class _ChatPageState extends State<ChatPage>
         _shouldAutoScroll = true;
       });
 
-      // Get system prompt
-      final prefs = await SharedPreferences.getInstance();
-      final systemPrompt = prefs.getString('systemPrompt') ??
-          'You are a helpful AI assistant. Be concise and clear in your responses.';
-      final temperature = prefs.getDouble('temperature') ?? 0.7;
-
-      // Convert messages to proper format
-      List<Message> messageList = [];
-
-      // Add system message
-      messageList.add(Message(
-        role: MessageRole.system,
-        content: systemPrompt,
-      ));
-
-      // Add previous messages from the same session
-      final previousChats = chatBox
-          .query(Chat_.chatSession.equals(currentSession!.id))
-          .order(Chat_.timestamp)
-          .build()
-          .find();
-
-      for (final chat in previousChats) {
-        if (chat.id != userChat.id && chat.id != botChat.id) {
-          messageList.add(Message(
-            role: chat.isUserMessage ? MessageRole.user : MessageRole.assistant,
-            content: chat.message,
-          ));
-        }
+      // Build conversation history
+      final List<Message> messageList = [];
+      
+      // Find the index of the user message being regenerated
+      final userChatIndex = chats.indexOf(userChat);
+      
+      // Only add system prompt if this is the first message in the session
+      if (userChatIndex <= 0) {
+        messageList.add(Message(
+          role: MessageRole.system,
+          content: systemPrompt,
+        ));
       }
 
-      // Add current message
-      if (messages.isNotEmpty) {
-        // For image messages, use a special format
-        var imageMessages = messages
-            .where((m) => m["role"] == "user" && m["content"] is List)
-            .toList();
-
-        var textMessages = messages
-            .where((m) => m["role"] == "user" && m["content"] is String)
-            .toList();
-
-        if (imageMessages.isNotEmpty) {
-          for (var msg in imageMessages) {
-            var contentList = msg["content"] as List;
-            var imageData = contentList.firstWhere(
-              (c) => c["type"] == "image",
-              orElse: () => {"data": ""},
-            )["data"];
-            var textData = contentList.firstWhere(
-              (c) => c["type"] == "text",
-              orElse: () => {"data": ""},
-            )["data"];
-
-            messageList.add(Message(
-              role: MessageRole.user,
-              content: "Image: $imageData\n$textData",
-            ));
-          }
-        }
-
-        if (textMessages.isNotEmpty) {
-          var textContent = textMessages
-              .map((m) => m["content"].toString())
-              .where((s) => s.isNotEmpty)
-              .join("\n");
-
-          if (textContent.isNotEmpty) {
-            messageList.add(Message(
-              role: MessageRole.user,
-              content: textContent,
-            ));
-          }
-        }
+      // Add previous messages up to the current exchange
+      for (int i = 0; i < userChatIndex; i++) {
+        final chat = chats[i];
+        messageList.add(Message(
+          role: chat.isUserMessage ? MessageRole.user : MessageRole.assistant,
+          content: chat.message,
+        ));
       }
+
+      // Add the current message
+      messageList.addAll(messages);
 
       _streamSubscription = _ollamaClient
           .generateChatCompletionStream(
         request: GenerateChatCompletionRequest(
           model: selectedModel!,
           messages: messageList,
-          options: RequestOptions(temperature: temperature),
+          options: RequestOptions(
+            temperature: temperature,
+          ),
         ),
       )
           .listen(
@@ -543,7 +494,11 @@ class _ChatPageState extends State<ChatPage>
           SnackBar(
               content: Text(
             'Error: Failed to get response from Ollama',
-            style: GoogleFonts.getFont(Util.appFont),
+            style: GoogleFonts.getFont(
+              Util.appFont,
+              fontSize: 16,
+              color: Colors.red,
+            ),
           )),
         );
       }
@@ -625,7 +580,7 @@ class _ChatPageState extends State<ChatPage>
     });
 
     String fullMessage = userChat.message;
-    List<Map<String, dynamic>> messages = [];
+    List<Message> messages = [];
 
     // Load content from saved file paths
     if (userChat.attachedFilesPath.isNotEmpty) {
@@ -651,13 +606,14 @@ class _ChatPageState extends State<ChatPage>
               final bytes = await file.readAsBytes();
               final base64Image = base64Encode(bytes);
 
-              messages.add({
-                "role": "user",
-                "content": [
-                  {"type": "image", "data": base64Image},
-                  {"type": "text", "data": "What's shown in this image?"}
-                ]
-              });
+              messages.add(Message(
+                role: MessageRole.user,
+                content: userChat.message
+                    .replaceAll(
+                        RegExp(r'\n\nAttached Files:.*$', dotAll: true), '')
+                    .trim(),
+                images: [base64Image],
+              ));
             } catch (e) {
               print('Error reading image file $fileName: $e');
               fullMessage += ' [Error reading image file]';
@@ -683,16 +639,132 @@ class _ChatPageState extends State<ChatPage>
       }
     }
 
-    // Add the message content
-    messages.add({
-      "role": "user",
-      "content": fullMessage,
-    });
+    // Add the message content if no images were processed
+    if (messages.isEmpty) {
+      messages.add(Message(
+        role: MessageRole.user,
+        content: fullMessage,
+      ));
+    }
 
-    await _generateResponse(userChat, botChat, messages);
+    // Get system prompt
+    final prefs = await SharedPreferences.getInstance();
+    final systemPrompt = prefs.getString('systemPrompt') ??
+        'You are a helpful AI assistant. Be concise and clear in your responses.';
+    final temperature = prefs.getDouble('temperature') ?? 0.7;
+
+    try {
+      await _streamSubscription?.cancel();
+
+      setState(() {
+        _isStreaming = true;
+        _streamingNotifier.value = true;
+        _shouldAutoScroll = true;
+      });
+
+      // Build conversation history
+      final List<Message> messageList = [];
+      
+      // Find the index of the user message being regenerated
+      final userChatIndex = chats.indexOf(userChat);
+      
+      // Only add system prompt if this is the first message in the session
+      if (userChatIndex <= 0) {
+        messageList.add(Message(
+          role: MessageRole.system,
+          content: systemPrompt,
+        ));
+      }
+
+      // Add previous messages up to the current exchange
+      for (int i = 0; i < userChatIndex; i++) {
+        final chat = chats[i];
+        messageList.add(Message(
+          role: chat.isUserMessage ? MessageRole.user : MessageRole.assistant,
+          content: chat.message,
+        ));
+      }
+
+      // Add the current message
+      messageList.addAll(messages);
+
+      _streamSubscription = _ollamaClient
+          .generateChatCompletionStream(
+        request: GenerateChatCompletionRequest(
+          model: selectedModel!,
+          messages: messageList,
+          options: RequestOptions(
+            temperature: temperature,
+          ),
+        ),
+      )
+          .listen(
+        (res) {
+          if (!mounted) return;
+          if (res.message?.content != null) {
+            setState(() {
+              botChat.message += res.message!.content;
+              chatBox.put(botChat);
+              chats = List.from(chats);
+            });
+
+            // Only auto-scroll if enabled
+            if (_shouldAutoScroll) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _shouldAutoScroll) {
+                  _scrollController
+                      .jumpTo(_scrollController.position.maxScrollExtent);
+                }
+              });
+            }
+          }
+        },
+        onDone: () {
+          if (mounted) {
+            setState(() {
+              _isStreaming = false;
+              chatBox.put(botChat);
+            });
+            _streamingNotifier.value = false;
+          }
+        },
+        onError: (e) {
+          print('Error: $e');
+          if (mounted) {
+            setState(() {
+              _isStreaming = false;
+              botChat.message = 'Error: Failed to generate response';
+              chatBox.put(botChat);
+            });
+            _streamingNotifier.value = false;
+          }
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      print('Error: $e');
+      if (mounted) {
+        setState(() {
+          _isStreaming = false;
+          botChat.message = 'Error: Failed to get response from Ollama';
+          chatBox.put(botChat);
+        });
+        _streamingNotifier.value = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+            'Error: Failed to get response from Ollama',
+            style: GoogleFonts.getFont(
+              Util.appFont,
+              fontSize: 16,
+              color: Colors.red,
+            ),
+          )),
+        );
+      }
+    }
   }
 
-  // Add helper method to read document content from path
   Future<String?> _readDocumentContentFromPath(String filePath) async {
     try {
       final file = File(filePath);
@@ -757,6 +829,11 @@ class _ChatPageState extends State<ChatPage>
       print('Error reading file content: $e');
       return null;
     }
+  }
+
+  Future<String?> _readDocumentContent(PlatformFile file) async {
+    if (file.path == null) return null;
+    return _readDocumentContentFromPath(file.path!);
   }
 
   // Function to edit message
@@ -948,7 +1025,22 @@ class _ChatPageState extends State<ChatPage>
 
       if (result != null) {
         setState(() {
-          _selectedFiles = result.files.take(10).toList(); // Limit to 10 files
+          // Add new files to existing ones, up to a maximum of 10 files total
+          final newFiles = result.files.take(10 - _selectedFiles.length).toList();
+          _selectedFiles = [..._selectedFiles, ...newFiles];
+          if (_selectedFiles.length > 10) {
+            _selectedFiles = _selectedFiles.take(10).toList();
+            // Show warning if files were skipped
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Maximum 10 files allowed',
+                  style: GoogleFonts.getFont(Util.appFont),
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
         });
       }
     } catch (e) {
@@ -1495,7 +1587,7 @@ class _ChatPageState extends State<ChatPage>
                   ];
 
                   // Regenerate response with edited message
-                  await _generateResponse(chat, botChat, messages);
+                  await _regenerateResponse(chat, botChat);
                 }
               }
             }
@@ -2037,8 +2129,8 @@ class _ChatPageState extends State<ChatPage>
         final oldestTimestamp = chats.first.timestamp;
         final olderChats = allChats
             .where((chat) => chat.timestamp.isBefore(oldestTimestamp))
-            .take(_chatsLimit)
-            .toList();
+                .take(_chatsLimit)
+                .toList();
 
         if (olderChats.isEmpty) {
           _hasMoreChats = false;
@@ -2072,8 +2164,8 @@ class _ChatPageState extends State<ChatPage>
     try {
       final query = chatBox
           .query(Chat_.chatSession.equals(params['sessionId'] as int))
-          .order(Chat_.timestamp) // Change to normal order
-          .build();
+              .order(Chat_.timestamp) // Change to normal order
+              .build();
 
       final totalChats = query.count();
       final limit = params['limit'] as int;
@@ -2088,10 +2180,10 @@ class _ChatPageState extends State<ChatPage>
         loadedChats = query
             .find()
             .where((chat) => chat.timestamp.isBefore(timestamp))
-            .take(limit)
-            .toList()
-            .reversed
-            .toList();
+                .take(limit)
+                .toList()
+                .reversed
+                .toList();
       }
 
       return {
@@ -2169,8 +2261,8 @@ class _ChatPageState extends State<ChatPage>
       final olderChats = query
           .find()
           .where((chat) => chat.timestamp.isBefore(lastTimestamp))
-          .take(params['limit'] as int)
-          .toList();
+              .take(params['limit'] as int)
+              .toList();
 
       return olderChats;
     } finally {
@@ -2188,33 +2280,94 @@ class _ChatPageState extends State<ChatPage>
   Widget _buildFilePreview(PlatformFile file) {
     if (_isImageFile(file.extension ?? '')) {
       return Container(
-        width: 100,
-        height: 100,
-        margin: EdgeInsets.only(right: 8),
+        width: 150,
+        height: 150,
+        margin: EdgeInsets.only(right: 8, bottom: 8),
         decoration: BoxDecoration(
-          border: Border.all(color: Color(0xFF2D2E32)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            File(file.path!),
-            fit: BoxFit.cover,
+          color: Color(0xFF1E1B2C),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Color(0xFF8B5CF6).withOpacity(0.2),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF8B5CF6).withOpacity(0.1),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(file.path!),
+                fit: BoxFit.cover,
+                width: 150,
+                height: 150,
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.close, color: Colors.white, size: 16),
+                  padding: EdgeInsets.all(4),
+                  constraints: BoxConstraints(),
+                  onPressed: () => _removeFile(file),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  file.name,
+                  style: GoogleFonts.getFont(
+                    Util.appFont,
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return Chip(
-      label: Text(
-        file.name,
-        style: GoogleFonts.getFont(Util.appFont),
+    return Container(
+      margin: EdgeInsets.only(right: 8, bottom: 8),
+      child: Chip(
+        label: Text(
+          file.name,
+          style: GoogleFonts.getFont(Util.appFont),
+        ),
+        deleteIcon: Icon(Icons.close, size: 16),
+        onDeleted: () => _removeFile(file),
+        backgroundColor: Color(0xFF1E1B2C),
+        side: BorderSide(
+          color: Color(0xFF8B5CF6).withOpacity(0.2),
+        ),
       ),
-      onDeleted: () {
-        setState(() {
-          _selectedFiles.remove(file);
-        });
-      },
     );
   }
 
@@ -2333,71 +2486,10 @@ class _ChatPageState extends State<ChatPage>
     );
   }
 
-  Future<String?> _readDocumentContent(PlatformFile file) async {
-    try {
-      final extension = file.extension?.toLowerCase() ?? '';
-
-      switch (extension) {
-        case 'pdf':
-          final pdfFile = File(file.path!);
-          final document = PdfDocument(inputBytes: await pdfFile.readAsBytes());
-          final PdfTextExtractor extractor = PdfTextExtractor(document);
-          final String text = extractor.extractText();
-          document.dispose();
-          return text;
-
-        case 'doc':
-        case 'docx':
-          final bytes = await File(file.path!).readAsBytes();
-          return docxToText(bytes);
-
-        case 'xls':
-        case 'xlsx':
-          final bytes = await File(file.path!).readAsBytes();
-          final ex = excel.Excel.decodeBytes(bytes);
-          final buffer = StringBuffer();
-
-          for (var table in ex.tables.keys) {
-            buffer.writeln('Sheet: $table');
-            for (var row in ex.tables[table]!.rows) {
-              buffer.writeln(
-                  row.map((cell) => cell?.value.toString() ?? '').join('\t'));
-            }
-            buffer.writeln();
-          }
-          return buffer.toString();
-
-        case 'txt':
-        case 'json':
-        case 'md':
-        case 'py':
-        case 'js':
-        case 'java':
-        case 'cpp':
-        case 'cs':
-        case 'html':
-        case 'css':
-        case 'xml':
-        case 'yaml':
-        case 'ini':
-        case 'toml':
-        case 'htm':
-          return await File(file.path!).readAsString();
-
-        default:
-          print('Unsupported file type: $extension');
-          return null;
-      }
-    } catch (e) {
-      print('Error reading file content: $e');
-      return null;
-    }
-  }
-
   // Add this method
   void _removeFile(PlatformFile file) {
     setState(() {
-      _selectedFiles.remove(file);
+      _selectedFiles.removeWhere((f) => f.path == file.path);
     });
   }
 }

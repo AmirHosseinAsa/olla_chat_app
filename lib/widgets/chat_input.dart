@@ -33,12 +33,34 @@ class ChatInput extends StatelessWidget {
           border: Border.all(color: Color(0xFF2D2E32)),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            File(file.path!),
-            fit: BoxFit.cover,
-          ),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(file.path!),
+                fit: BoxFit.cover,
+                width: 100,
+                height: 100,
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.close, color: Colors.white, size: 16),
+                  padding: EdgeInsets.all(4),
+                  constraints: BoxConstraints(),
+                  onPressed: () => onRemoveFile(file),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
