@@ -102,7 +102,6 @@ class _ChatPageState extends State<ChatPage>
 
   // Add scroll controller
   final ScrollController _scrollController = ScrollController();
-  bool _showScrollToBottom = false;
 
   String? selectedModel;
   List<Model> availableModels = [];
@@ -140,14 +139,10 @@ class _ChatPageState extends State<ChatPage>
   bool _isLoadingSession = false;
 
   // Add these ValueNotifiers to the _ChatPageState class
-  final ValueNotifier<bool> _isAtBottomNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<bool> _showScrollToBottomNotifier =
       ValueNotifier<bool>(false);
-  final ValueNotifier<String> _streamingMessageNotifier =
-      ValueNotifier<String>('');
 
   // Add these to the _ChatPageState class properties
-  Timer? _debounceTimer;
   final ValueNotifier<bool> _ollamaAvailable = ValueNotifier<bool>(false);
   final ValueNotifier<String> _ollamaError = ValueNotifier<String>('');
 
@@ -290,8 +285,8 @@ class _ChatPageState extends State<ChatPage>
       _createNewSession();
     }
 
-
-    String fullMessage ="Current date and time: " + DateTime.now().toString() + "\n" + message;
+    String fullMessage =
+        "Current date and time: " + DateTime.now().toString() + "\n" + message;
     String visibleMessage = message;
     List<Message> messages = [];
     List<String> filePaths = [];
@@ -404,10 +399,10 @@ class _ChatPageState extends State<ChatPage>
 
       // Build conversation history
       final List<Message> messageList = [];
-      
+
       // Find the index of the user message being regenerated
       final userChatIndex = chats.indexOf(userChat);
-      
+
       // Only add system prompt if this is the first message in the session
       if (userChatIndex <= 0) {
         messageList.add(Message(
@@ -664,10 +659,10 @@ class _ChatPageState extends State<ChatPage>
 
       // Build conversation history
       final List<Message> messageList = [];
-      
+
       // Find the index of the user message being regenerated
       final userChatIndex = chats.indexOf(userChat);
-      
+
       // Only add system prompt if this is the first message in the session
       if (userChatIndex <= 0) {
         messageList.add(Message(
@@ -961,10 +956,18 @@ class _ChatPageState extends State<ChatPage>
 
   // Improved speak function with better text preprocessing
   Future<void> _speak(String text) async {
-    // Remove markdown formatting and special characters
+    // Clean up markdown and special characters
     text = text
-        .replaceAll(RegExp(r'[\n\\*\/><]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ');
+        .replaceAll(RegExp(r'```[\s\S]*?```'), '') // Remove code blocks
+        .replaceAll(RegExp(r'`[^`]*`'), '') // Remove inline code
+        .replaceAll(RegExp(r'#{1,6}\s.*'), '') // Remove headers
+        .replaceAll(RegExp(r'\*\*(.*?)\*\*'), '') // Clean bold text
+        .replaceAll(RegExp(r'\|(.*?)\|'), '') // Clean table syntax
+        .replaceAll(RegExp(r'<think>.*?</think>', dotAll: true), '') // Remove thinking blocks
+        .replaceAll(RegExp(r'\$\d+'), '') // Remove dollar signs with numbers
+        .replaceAll(RegExp(r'[\n\r\t]+'), ' ') // Replace newlines and tabs with spaces
+        .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
+        .trim();
 
     if (isSpeaking) {
       await flutterTts.stop();
@@ -974,11 +977,7 @@ class _ChatPageState extends State<ChatPage>
       return;
     }
 
-    // Preprocess text for better speech
     String processedText = text
-        .replaceAll(RegExp(r'\s+'), ' ') // Normalize whitespace
-        .replaceAll(
-            RegExp(r'([.!?])\s*'), r'$1\n') // Add pauses after sentences
         .trim();
 
     setState(() {
@@ -1026,7 +1025,8 @@ class _ChatPageState extends State<ChatPage>
       if (result != null) {
         setState(() {
           // Add new files to existing ones, up to a maximum of 10 files total
-          final newFiles = result.files.take(10 - _selectedFiles.length).toList();
+          final newFiles =
+              result.files.take(10 - _selectedFiles.length).toList();
           _selectedFiles = [..._selectedFiles, ...newFiles];
           if (_selectedFiles.length > 10) {
             _selectedFiles = _selectedFiles.take(10).toList();
@@ -1166,9 +1166,12 @@ class _ChatPageState extends State<ChatPage>
         _shouldAutoScroll = true;
       });
     }
-
-    // Update scroll button visibility
-    _showScrollToBottomNotifier.value = !isNearBottom;
+    if (_showScrollToBottomNotifier.value != !isNearBottom) {
+      print('isNearBottom: $isNearBottom');
+      setState(() {
+        _showScrollToBottomNotifier.value = !isNearBottom;
+      });
+    }
   }
 
   @override
@@ -1335,7 +1338,7 @@ class _ChatPageState extends State<ChatPage>
                               tooltip: 'New Chat',
                             ),
                           ),
-                          Expanded(child: SizedBox()),
+                          Expanded(child: SizedBox(),),
                         ],
                       )
                     : ClipRRect(
@@ -1414,6 +1417,7 @@ class _ChatPageState extends State<ChatPage>
                               ),
                               SizedBox(height: 16),
                               Expanded(
+                                flex: 6,
                                 child: ListView.builder(
                                   controller: _sessionsScrollController,
                                   itemCount: (_isSearching
@@ -1441,13 +1445,14 @@ class _ChatPageState extends State<ChatPage>
                                   },
                                 ),
                               ),
+                              Expanded(child: SizedBox(), flex: 1,),
                             ],
                           ),
                         ),
                       ),
               ),
               Positioned(
-                bottom: 30,
+                bottom: 25,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -1726,55 +1731,6 @@ class _ChatPageState extends State<ChatPage>
                                 ],
                               ),
                             ),
-                            if (_isStreaming)
-                              Container(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                child: Center(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFF1E1B2C),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color:
-                                            Color(0xFF8B5CF6).withOpacity(0.3),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Color(0xFF8B5CF6)
-                                              .withOpacity(0.1),
-                                          blurRadius: 10,
-                                        ),
-                                      ],
-                                    ),
-                                    child: TextButton.icon(
-                                      onPressed: _stopGeneration,
-                                      icon: Icon(
-                                        Icons.stop,
-                                        size: 18,
-                                        color: Color(0xFF8B5CF6),
-                                      ),
-                                      label: Text(
-                                        'Stop Generating',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF8B5CF6),
-                                        ),
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        backgroundColor:
-                                            Color(0xFF8B5CF6).withOpacity(0.05),
-                                        padding: EdgeInsets.symmetric(
-                                            horizontal: 20, vertical: 10),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ChatInput(
                               controller: _chatController,
                               isStreaming: _isStreaming,
@@ -1782,6 +1738,7 @@ class _ChatPageState extends State<ChatPage>
                               onSend: _sendMessage,
                               onPickFiles: _pickFiles,
                               onRemoveFile: _removeFile,
+                              onStopGeneration: _stopGeneration,
                             ),
                           ],
                         ),
@@ -1800,7 +1757,7 @@ class _ChatPageState extends State<ChatPage>
             child: FloatingActionButton(
               mini: true,
               backgroundColor:
-                  Color.fromARGB(82, 180, 74, 255), // Darker purple color
+                  Color.fromARGB(82, 150, 150, 150), // Darker purple color
               onPressed: () {
                 _scrollToBottom();
                 setState(() {
@@ -1972,13 +1929,27 @@ class _ChatPageState extends State<ChatPage>
     });
 
     try {
-      final moreSessions = sessionBox
+      final query = sessionBox
           .query()
           .order(ChatSession_.lastUpdatedAt, flags: Order.descending)
-          .build()
+          .build();
+
+      final totalCount = query.count();
+      
+      // If we've loaded all sessions, don't try to load more
+      if (sessions.length >= totalCount) {
+        setState(() {
+          _isLoadingMoreSessions = false;
+        });
+        return;
+      }
+
+      // Get all sessions and manually handle pagination
+      final moreSessions = query
           .find()
-        ..length = _sessionsLimit
-        ..skip(sessions.length);
+          .skip(sessions.length)
+          .take(_sessionsLimit)
+          .toList();
 
       if (moreSessions.isNotEmpty) {
         setState(() {
@@ -2164,8 +2135,8 @@ class _ChatPageState extends State<ChatPage>
     try {
       final query = chatBox
           .query(Chat_.chatSession.equals(params['sessionId'] as int))
-              .order(Chat_.timestamp) // Change to normal order
-              .build();
+          .order(Chat_.timestamp) // Change to normal order
+          .build();
 
       final totalChats = query.count();
       final limit = params['limit'] as int;
@@ -2195,301 +2166,16 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
-  // Update the _loadMoreChats method
-  Future<void> _loadMoreChats() async {
-    if (_isLoadingMoreChats || !_hasMoreChats || currentSession == null) return;
-
+  // Add this method
+  void _removeFile(PlatformFile file) {
     setState(() {
-      _isLoadingMoreChats = true;
+      _selectedFiles.removeWhere((f) => f.path == file.path);
     });
-
-    try {
-      final rootIsolateToken = RootIsolateToken.instance!;
-      final storeDir = (await getApplicationDocumentsDirectory()).path;
-
-      final olderChats = await compute<Map<String, dynamic>, List<Chat>>(
-        _loadMoreChatsIsolate,
-        {
-          'sessionId': currentSession!.id,
-          'limit': _chatsLimit,
-          'lastTimestamp': chats.first.timestamp.toIso8601String(),
-          'rootIsolateToken': rootIsolateToken,
-          'storeDir': storeDir,
-        },
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        if (olderChats.isEmpty) {
-          _hasMoreChats = false;
-        } else {
-          chats.insertAll(0, olderChats);
-        }
-        _isLoadingMoreChats = false;
-      });
-    } catch (e) {
-      print('Error loading more chats: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingMoreChats = false;
-        });
-      }
-    }
-  }
-
-  // Update the _loadMoreChatsIsolate function
-  static Future<List<Chat>> _loadMoreChatsIsolate(
-      Map<String, dynamic> params) async {
-    BackgroundIsolateBinaryMessenger.ensureInitialized(
-        params['rootIsolateToken'] as RootIsolateToken);
-
-    // Create a new store instead of attaching
-    final store = Store(getObjectBoxModel(),
-        directory: '${params['storeDir']}/objectbox');
-
-    final chatBox = store.box<Chat>();
-
-    try {
-      final lastTimestamp = DateTime.parse(params['lastTimestamp'] as String);
-
-      final query = chatBox
-          .query(Chat_.chatSession.equals(params['sessionId'] as int))
-          .order(Chat_.timestamp) // Change to normal order
-          .build();
-
-      final olderChats = query
-          .find()
-          .where((chat) => chat.timestamp.isBefore(lastTimestamp))
-              .take(params['limit'] as int)
-              .toList();
-
-      return olderChats;
-    } finally {
-      store.close();
-    }
   }
 
   // Add helper method to check if file is an image
   bool _isImageFile(String extension) {
     final imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
     return imageExtensions.contains(extension.toLowerCase());
-  }
-
-  // Add this widget to show file previews
-  Widget _buildFilePreview(PlatformFile file) {
-    if (_isImageFile(file.extension ?? '')) {
-      return Container(
-        width: 150,
-        height: 150,
-        margin: EdgeInsets.only(right: 8, bottom: 8),
-        decoration: BoxDecoration(
-          color: Color(0xFF1E1B2C),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Color(0xFF8B5CF6).withOpacity(0.2),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF8B5CF6).withOpacity(0.1),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(file.path!),
-                fit: BoxFit.cover,
-                width: 150,
-                height: 150,
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: IconButton(
-                  icon: Icon(Icons.close, color: Colors.white, size: 16),
-                  padding: EdgeInsets.all(4),
-                  constraints: BoxConstraints(),
-                  onPressed: () => _removeFile(file),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  file.name,
-                  style: GoogleFonts.getFont(
-                    Util.appFont,
-                    color: Colors.white,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      margin: EdgeInsets.only(right: 8, bottom: 8),
-      child: Chip(
-        label: Text(
-          file.name,
-          style: GoogleFonts.getFont(Util.appFont),
-        ),
-        deleteIcon: Icon(Icons.close, size: 16),
-        onDeleted: () => _removeFile(file),
-        backgroundColor: Color(0xFF1E1B2C),
-        side: BorderSide(
-          color: Color(0xFF8B5CF6).withOpacity(0.2),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWelcomeMessage() {
-    return Center(
-      child: Container(
-        constraints: BoxConstraints(maxWidth: 600),
-        padding: EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 48,
-              color: Color(0xFF8B5CF6),
-            ),
-            SizedBox(height: 24),
-            Text(
-              'Welcome to OllaChat',
-              style: GoogleFonts.getFont(
-                Util.appFont,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white
-                    : Colors.black87,
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Your Local AI Assistant',
-              style: GoogleFonts.getFont(
-                Util.appFont,
-                fontSize: 18,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white70
-                    : Colors.black54,
-              ),
-            ),
-            SizedBox(height: 32),
-            _buildFeatureCard(
-                'Privacy First',
-                'All conversations stay on your device. No data sent to external servers.',
-                Icons.security),
-            _buildFeatureCard(
-                'Powerful Models',
-                'Access to state-of-the-art AI models running locally on your machine.',
-                Icons.psychology),
-            _buildFeatureCard(
-                'Full Control',
-                'Customize the AI behavior, temperature, and system prompts to your needs.',
-                Icons.tune),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard(String title, String description, IconData icon) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Color(0xFF1E1B2C)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Color(0xFF2D2E32)
-              : Colors.grey.shade200,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Color(0xFF8B5CF6).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: Color(0xFF8B5CF6)),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.getFont(
-                    Util.appFont,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white
-                        : Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  description,
-                  style: GoogleFonts.getFont(
-                    Util.appFont,
-                    fontSize: 14,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white70
-                        : Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Add this method
-  void _removeFile(PlatformFile file) {
-    setState(() {
-      _selectedFiles.removeWhere((f) => f.path == file.path);
-    });
   }
 }

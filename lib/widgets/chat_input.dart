@@ -12,6 +12,7 @@ class ChatInput extends StatelessWidget {
   final Function(String) onSend;
   final VoidCallback onPickFiles;
   final Function(PlatformFile) onRemoveFile;
+  final VoidCallback? onStopGeneration;
 
   const ChatInput({
     Key? key,
@@ -21,6 +22,7 @@ class ChatInput extends StatelessWidget {
     required this.onSend,
     required this.onPickFiles,
     required this.onRemoveFile,
+    this.onStopGeneration,
   }) : super(key: key);
 
   Widget _buildFilePreview(PlatformFile file) {
@@ -91,107 +93,117 @@ class ChatInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Container(
-        width: MediaQuery.of(context).size.width / 1.22,
-        decoration: BoxDecoration(
-          color: Color(0xFF1E1B2C).withOpacity(0.9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Color(0xFF2D2E32),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF8B5CF6).withOpacity(0.1),
-              blurRadius: 12,
-              offset: Offset(0, -4),
+    return RawKeyboardListener(
+      focusNode: FocusNode()..requestFocus(),
+      onKey: (event) {
+        if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+          if (isStreaming) {
+            onStopGeneration?.call();
+          }
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Container(
+          width: MediaQuery.of(context).size.width / 1.22,
+          decoration: BoxDecoration(
+            color: Color(0xFF1E1B2C).withOpacity(0.9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Color(0xFF2D2E32),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (selectedFiles.isNotEmpty)
-              Container(
-                padding: EdgeInsets.all(12),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: selectedFiles
-                      .map((file) => _buildFilePreview(file))
-                      .toList(),
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFF8B5CF6).withOpacity(0.1),
+                blurRadius: 12,
+                offset: Offset(0, -4),
               ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selectedFiles.isNotEmpty)
                 Container(
-                  padding: EdgeInsets.all(5),
-                  child: IconButton(
-                    icon: Icon(Icons.attach_file, color: Colors.white70),
-                    onPressed: isStreaming ? null : onPickFiles,
+                  padding: EdgeInsets.all(12),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: selectedFiles
+                        .map((file) => _buildFilePreview(file))
+                        .toList(),
                   ),
                 ),
-                Expanded(
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height / 1.8,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(5),
+                    child: IconButton(
+                      icon: Icon(Icons.attach_file, color: Colors.white70),
+                      onPressed: onPickFiles,
                     ),
-                    child: Focus(
-                        onKeyEvent: (node, event) {
-                          if (event is KeyDownEvent &&
-                              event.logicalKey == LogicalKeyboardKey.enter &&
-                              HardwareKeyboard.instance.isControlPressed) {
-                            if (!isStreaming) {
+                  ),
+                  Expanded(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height / 1.8,
+                      ),
+                      child: Focus(
+                          onKeyEvent: (node, event) {
+                            if (event is KeyDownEvent &&
+                                event.logicalKey == LogicalKeyboardKey.enter &&
+                                HardwareKeyboard.instance.isControlPressed) {
+                              if (!isStreaming) {
+                                onSend(controller.text);
+                                controller.clear();
+                              }
+                              return KeyEventResult.handled;
+                            }
+                            return KeyEventResult.ignored;
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.all(3),
+                            child: TextField(
+                              controller: controller,
+                              decoration: InputDecoration(
+                                hintText: 'Type a message...',
+                                hintStyle: GoogleFonts.getFont(Util.appFont)
+                                    .copyWith(color: Colors.white38),
+                                contentPadding: EdgeInsets.all(16),
+                                border: InputBorder.none,
+                              ),
+                              cursorColor: Color(0xFF8B5CF6),
+                              keyboardType: TextInputType.multiline,
+                              maxLines: null,
+                              minLines: 1,
+                              textInputAction: TextInputAction.newline,
+                              enabled: true,
+                              style: GoogleFonts.getFont(Util.appFont)
+                                  .copyWith(color: Colors.white70),
+                            ),
+                          )),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.all(5),
+                    child: IconButton(
+                      icon: Icon(
+                        isStreaming ? Icons.stop : Icons.send,
+                        color: Colors.white38,
+                      ),
+                      onPressed: isStreaming
+                          ? onStopGeneration
+                          : () {
                               onSend(controller.text);
                               controller.clear();
-                            }
-                            return KeyEventResult.handled;
-                          }
-                          return KeyEventResult.ignored;
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.all(3),
-                          child: TextField(
-                            controller: controller,
-                            decoration: InputDecoration(
-                              hintText: 'Type a message...',
-                              hintStyle: GoogleFonts.getFont(Util.appFont)
-                                  .copyWith(color: Colors.white38),
-                              contentPadding: EdgeInsets.all(16),
-                              border: InputBorder.none,
-                            ),
-                            cursorColor: Color(0xFF8B5CF6),
-                            keyboardType: TextInputType.multiline,
-                            maxLines: null,
-                            minLines: 1,
-                            textInputAction: TextInputAction.newline,
-                            enabled: !isStreaming,
-                            style: GoogleFonts.getFont(Util.appFont)
-                                .copyWith(color: Colors.white70),
-                          ),
-                        )),
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.all(5),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.send,
-                      color: isStreaming ? Colors.white10 : Colors.white38,
+                            },
                     ),
-                    onPressed: isStreaming
-                        ? null
-                        : () {
-                            onSend(controller.text);
-                            controller.clear();
-                          },
-                  ),
-                )
-              ],
-            ),
-          ],
+                  )
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

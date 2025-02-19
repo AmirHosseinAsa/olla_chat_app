@@ -293,7 +293,7 @@ class _ChatBubbleState extends State<ChatBubble>
     }
 
     // First handle code blocks with triple backticks
-    final codeBlockRegex = RegExp(r'```[\s\S]*?```');
+    final codeBlockRegex = RegExp(r'```(?:\w+)?\s*\n?[\s\S]*?(?:```|$)');
     final parts = message.split(codeBlockRegex);
     final codeMatches = codeBlockRegex.allMatches(message).toList();
 
@@ -324,8 +324,8 @@ class _ChatBubbleState extends State<ChatBubble>
         final codeBlock = codeMatches[matchIndex].group(0)!;
         // Multi-line code block
         final code = codeBlock
-            .replaceAll(RegExp(r'^```\w*\n?'), '') // Remove opening ```
-            .replaceAll(RegExp(r'\n?```$'), '') // Remove closing ```
+            .replaceAll(RegExp(r'^```\w*\s*\n?'), '') // Remove opening ```
+            .replaceAll(RegExp(r'\n?```$'), '') // Remove closing ``` if it exists
             .trim();
         if (code.isNotEmpty) {
           widgets.add(_buildCodeBlock(code));
