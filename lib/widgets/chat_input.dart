@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../utils/util.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:desktop_drop/desktop_drop.dart';
 
 class ChatInput extends StatefulWidget {
   final TextEditingController controller;
@@ -13,6 +14,7 @@ class ChatInput extends StatefulWidget {
   final VoidCallback onPickFiles;
   final Function(PlatformFile) onRemoveFile;
   final VoidCallback? onStopGeneration;
+  final Function(List<PlatformFile>)? onFilesDropped;
 
   ChatInput({
     Key? key,
@@ -23,6 +25,7 @@ class ChatInput extends StatefulWidget {
     required this.onPickFiles,
     required this.onRemoveFile,
     this.onStopGeneration,
+    this.onFilesDropped,
   }) : super(key: key);
 
   @override
@@ -31,6 +34,7 @@ class ChatInput extends StatefulWidget {
 
 class _ChatInputState extends State<ChatInput> {
   late final FocusNode _focusNode;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -131,109 +135,151 @@ class _ChatInputState extends State<ChatInput> {
           }
         }
       },
-      child: Container(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: Container(
-            width: MediaQuery.of(context).size.width / 1.22,
-            decoration: BoxDecoration(
-              color: Color(0xFF1E1B2C).withOpacity(0.6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Color(0xFF2D2E32).withOpacity(0.8),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF8B5CF6).withOpacity(0.05),
-                  blurRadius: 20,
-                  offset: Offset(0, 4),
+      child: DropTarget(
+        onDragDone: (detail) async {
+          final files = detail.files;
+          final platformFiles = <PlatformFile>[];
+
+          for (final file in files) {
+            try {
+              final path = file.path;
+              final name = file.name;
+              final bytes = await File(path).readAsBytes();
+
+              platformFiles.add(PlatformFile(
+                path: path,
+                name: name,
+                size: bytes.length,
+                bytes: bytes,
+              ));
+            } catch (e) {
+              print('Error processing dropped file: $e');
+            }
+          }
+
+          if (platformFiles.isNotEmpty && widget.onFilesDropped != null) {
+            widget.onFilesDropped!(platformFiles);
+          }
+        },
+        onDragEntered: (detail) {
+          setState(() => _isDragging = true);
+        },
+        onDragExited: (detail) {
+          setState(() => _isDragging = false);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16.0),
+          child: Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width / 1.22,
+              decoration: BoxDecoration(
+                color: _isDragging
+                    ? Color(0xFF8B5CF6).withOpacity(0.1)
+                    : Color(0xFF1E1B2C).withOpacity(0.6),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _isDragging
+                      ? Color(0xFF8B5CF6).withOpacity(0.3)
+                      : Color(0xFF2D2E32).withOpacity(0.8),
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.selectedFiles.isNotEmpty)
-                  Container(
-                    padding:
-                        EdgeInsets.only(left: 4, right: 4, top: 8, bottom: 2),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: widget.selectedFiles
-                            .map((file) => _buildFilePreview(file))
-                            .toList(),
-                      ),
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF8B5CF6).withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: Offset(0, 4),
                   ),
-                Row(
-                  children: [
-                    SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(
-                        Icons.attach_file,
-                        color: Colors.white.withOpacity(0.4),
-                        size: 20,
-                      ),
-                      onPressed: widget.onPickFiles,
-                      splashRadius: 20,
-                      tooltip: 'Attach files',
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        child: TextField(
-                          controller: widget.controller,
-                          decoration: InputDecoration(
-                            hintText: 'Type a message...',
-                            hintStyle:
-                                GoogleFonts.getFont(Util.appFont).copyWith(
-                              color: Colors.white.withOpacity(0.3),
-                              fontSize: 14,
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
-                            border: InputBorder.none,
-                          ),
-                          cursorColor: Color(0xFF8B5CF6),
-                          keyboardType: TextInputType.multiline,
-                          maxLines: 5,
-                          minLines: 1,
-                          textInputAction: TextInputAction.send,
-                          style: GoogleFonts.getFont(Util.appFont).copyWith(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.selectedFiles.isNotEmpty)
+                    Container(
+                      padding:
+                          EdgeInsets.only(left: 4, right: 4, top: 8, bottom: 2),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: widget.selectedFiles
+                              .map((file) => _buildFilePreview(file))
+                              .toList(),
                         ),
                       ),
                     ),
-                    Container(
-                      margin: EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        tooltip:
-                            widget.isStreaming ? 'Stop (Esc)' : 'Send (Ctrl+Enter)',
+                  Row(
+                    children: [
+                      SizedBox(width: 8),
+                      IconButton(
                         icon: Icon(
-                          widget.isStreaming ? Icons.stop : Icons.send,
-                          color: widget.controller.text.trim().isNotEmpty
-                              ? Color(0xFF8B5CF6)
-                              : Colors.white.withOpacity(0.3),
+                          Icons.attach_file,
+                          color: Colors.white.withOpacity(0.4),
                           size: 20,
                         ),
-                        onPressed: widget.isStreaming
-                            ? widget.onStopGeneration
-                            : () {
-                                if (widget.controller.text.trim().isNotEmpty) {
-                                  widget.onSend(widget.controller.text);
-                                  widget.controller.clear();
-                                }
-                              },
+                        onPressed: widget.onPickFiles,
                         splashRadius: 20,
+                        tooltip: 'Attach files',
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      Expanded(
+                        child: Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: TextField(
+                            controller: widget.controller,
+                            decoration: InputDecoration(
+                              hintText: _isDragging
+                                  ? 'Drop files here...'
+                                  : 'Type a message...',
+                              hintStyle:
+                                  GoogleFonts.getFont(Util.appFont).copyWith(
+                                color: Colors.white.withOpacity(0.3),
+                                fontSize: 14,
+                              ),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              border: InputBorder.none,
+                            ),
+                            cursorColor: Color(0xFF8B5CF6),
+                            keyboardType: TextInputType.multiline,
+                            maxLines: 5,
+                            minLines: 1,
+                            textInputAction: TextInputAction.send,
+                            style: GoogleFonts.getFont(Util.appFont).copyWith(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: EdgeInsets.only(right: 8),
+                        child: IconButton(
+                          tooltip: widget.isStreaming
+                              ? 'Stop (Esc)'
+                              : 'Send (Ctrl+Enter)',
+                          icon: Icon(
+                            widget.isStreaming ? Icons.stop : Icons.send,
+                            color: widget.controller.text.trim().isNotEmpty
+                                ? Color(0xFF8B5CF6)
+                                : Colors.white.withOpacity(0.3),
+                            size: 20,
+                          ),
+                          onPressed: widget.isStreaming
+                              ? widget.onStopGeneration
+                              : () {
+                                  if (widget.controller.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    widget.onSend(widget.controller.text);
+                                    widget.controller.clear();
+                                  }
+                                },
+                          splashRadius: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

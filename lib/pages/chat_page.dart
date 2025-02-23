@@ -21,6 +21,10 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:docx_to_text/docx_to_text.dart';
 import 'package:excel/excel.dart' as excel;
 import '../objectbox/objectbox.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import '../widgets/preset_prompts_grid.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 const String kDefaultModelKey = 'default_model';
 
@@ -1067,7 +1071,7 @@ class _ChatPageState extends State<ChatPage>
     super.dispose();
   }
 
-  // Add this method to handle file picking
+  // Update _pickFiles method to handle dropped files
   Future<void> _pickFiles() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -1201,7 +1205,7 @@ class _ChatPageState extends State<ChatPage>
     if (!_scrollController.hasClients) return;
 
     _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent+100,
+      _scrollController.position.maxScrollExtent + 100,
       duration: Duration(milliseconds: 150), // Faster duration for streaming
       curve: Curves.easeInOut, // Smoother curve for streaming
     );
@@ -1230,7 +1234,6 @@ class _ChatPageState extends State<ChatPage>
       });
     }
     if (_showScrollToBottomNotifier.value != !isNearBottom) {
-      print('isNearBottom: $isNearBottom');
       setState(() {
         _showScrollToBottomNotifier.value = !isNearBottom;
       });
@@ -1247,324 +1250,338 @@ class _ChatPageState extends State<ChatPage>
           selectionHandleColor: Color(0xFF8B5CF6),
         ),
       ),
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Color(0xFF1E1B2C),
-          elevation: 0,
-          title: Row(
-            children: [
-              Text(
-                'Olla Chat',
-                style: GoogleFonts.getFont(
-                  Util.appFont,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
-                ),
-              ),
-              if (availableModels.isNotEmpty)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  margin: EdgeInsets.symmetric(horizontal: 15),
-                  child: DropdownButton<String>(
-                    value: selectedModel,
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
-                    underline: SizedBox(),
-                    dropdownColor: Color(0xFF1E1B2C),
-                    items: availableModels.map((model) {
-                      return DropdownMenuItem(
-                        value: model.model,
-                        child: Text(
-                          model.model ?? "",
-                          style: GoogleFonts.getFont(
-                            Util.appFont,
-                            fontSize: 14,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) async {
-                      if (value != null) {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString(kDefaultModelKey, value);
-
-                        setState(() {
-                          selectedModel = value;
-                          if (currentSession != null) {
-                            currentSession!.modelName = value;
-                            sessionBox.put(currentSession!);
-                          }
-                        });
-                      }
-                    },
+      child: RawKeyboardListener(
+        focusNode: FocusNode()..requestFocus(),
+        onKey: (RawKeyEvent event) {
+          if (event is RawKeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape &&
+              _isStreaming) {
+            _stopGeneration();
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: Color(0xFF1E1B2C),
+            elevation: 0,
+            title: Row(
+              children: [
+                Text(
+                  'Olla Chat',
+                  style: GoogleFonts.getFont(
+                    Util.appFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
                   ),
                 ),
+                if (availableModels.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    margin: EdgeInsets.symmetric(horizontal: 15),
+                    child: DropdownButton<String>(
+                      value: selectedModel,
+                      icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
+                      underline: SizedBox(),
+                      dropdownColor: Color(0xFF1E1B2C),
+                      items: availableModels.map((model) {
+                        return DropdownMenuItem(
+                          value: model.model,
+                          child: Text(
+                            model.model ?? "",
+                            style: GoogleFonts.getFont(
+                              Util.appFont,
+                              fontSize: 14,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) async {
+                        if (value != null) {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString(kDefaultModelKey, value);
+
+                          setState(() {
+                            selectedModel = value;
+                            if (currentSession != null) {
+                              currentSession!.modelName = value;
+                              sessionBox.put(currentSession!);
+                            }
+                          });
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              // Toggle thinking visualization
+              IconButton(
+                icon: Icon(
+                  _showThinking ? Icons.psychology : Icons.psychology_outlined,
+                  color: _showThinking
+                      ? Util.primaryPurple
+                      : Theme.of(context).iconTheme.color,
+                  size: 22,
+                ),
+                onPressed: _toggleThinking,
+                tooltip: 'Toggle show reasoning',
+              ),
+              // Voice selector
+              IconButton(
+                icon: Icon(
+                  Icons.settings_voice,
+                  color: Theme.of(context).iconTheme.color,
+                  size: 22,
+                ),
+                onPressed: _showVoiceSelector,
+                tooltip: 'Select voice',
+              ),
+              // Manage Models
+              IconButton(
+                icon: Icon(
+                  Icons.model_training,
+                  color: Theme.of(context).iconTheme.color,
+                  size: 22,
+                ),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ModelsPage()),
+                  );
+                  // Refresh models when returning from Models page
+                  _loadAvailableModels();
+                },
+                tooltip: 'Manage Models',
+              ),
+              // Settings
+              IconButton(
+                icon: Icon(
+                  Icons.settings,
+                  color: Theme.of(context).iconTheme.color,
+                  size: 22,
+                ),
+                onPressed: () async {
+                  final shouldReload = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SettingsPage()),
+                  );
+                  // If data was cleared, reload sessions and reset current state
+                  if (shouldReload == true) {
+                    setState(() {
+                      currentSession = null;
+                      chats = [];
+                      sessions = [];
+                    });
+                    _loadSessions();
+                  }
+                },
+                tooltip: 'Settings',
+              ),
+              SizedBox(width: 8),
             ],
           ),
-          actions: [
-            // Toggle thinking visualization
-            IconButton(
-              icon: Icon(
-                _showThinking ? Icons.psychology : Icons.psychology_outlined,
-                color: _showThinking
-                    ? Util.primaryPurple
-                    : Theme.of(context).iconTheme.color,
-                size: 22,
-              ),
-              onPressed: _toggleThinking,
-              tooltip: 'Toggle thinking process',
-            ),
-            // Voice selector
-            IconButton(
-              icon: Icon(
-                Icons.settings_voice,
-                color: Theme.of(context).iconTheme.color,
-                size: 22,
-              ),
-              onPressed: _showVoiceSelector,
-              tooltip: 'Select voice',
-            ),
-            // Manage Models
-            IconButton(
-              icon: Icon(
-                Icons.model_training,
-                color: Theme.of(context).iconTheme.color,
-                size: 22,
-              ),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ModelsPage()),
-                );
-                // Refresh models when returning from Models page
-                _loadAvailableModels();
-              },
-              tooltip: 'Manage Models',
-            ),
-            // Settings
-            IconButton(
-              icon: Icon(
-                Icons.settings,
-                color: Theme.of(context).iconTheme.color,
-                size: 22,
-              ),
-              onPressed: () async {
-                final shouldReload = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SettingsPage()),
-                );
-                // If data was cleared, reload sessions and reset current state
-                if (shouldReload == true) {
-                  setState(() {
-                    currentSession = null;
-                    chats = [];
-                    sessions = [];
-                  });
-                  _loadSessions();
-                }
-              },
-              tooltip: 'Settings',
-            ),
-            SizedBox(width: 8),
-          ],
-        ),
-        body: Row(
-          children: [
-            Stack(
-              children: [
-                AnimatedContainer(
-                  duration: Duration(milliseconds: 200),
-                  width: isSidebarCollapsed ? 80 : 250,
-                  decoration: BoxDecoration(
-                    color: Color(0xFF1E1B2C).withOpacity(0.9),
-                    borderRadius: isSidebarCollapsed
-                        ? BorderRadius.only(
-                            topRight: Radius.circular(24),
-                            bottomRight: Radius.circular(24),
-                          )
-                        : BorderRadius.zero,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0xFF8B5CF6).withOpacity(0.1),
-                        blurRadius: 24,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: isSidebarCollapsed
-                      ? Column(
-                          children: [
-                            SizedBox(height: 16),
-                            Container(
-                              width: 80,
-                              alignment: Alignment.center,
-                              child: IconButton(
-                                icon: Icon(
-                                  Icons.add_circle_outline,
-                                  color: Color(0xFF8B5CF6),
-                                  size: 24,
+          body: Row(
+            children: [
+              Stack(
+                children: [
+                  AnimatedContainer(
+                    duration: Duration(milliseconds: 200),
+                    width: isSidebarCollapsed ? 80 : 250,
+                    decoration: BoxDecoration(
+                      color: Color(0xFF1E1B2C).withOpacity(0.9),
+                      borderRadius: isSidebarCollapsed
+                          ? BorderRadius.only(
+                              topRight: Radius.circular(24),
+                              bottomRight: Radius.circular(24),
+                            )
+                          : BorderRadius.zero,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0xFF8B5CF6).withOpacity(0.1),
+                          blurRadius: 24,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: isSidebarCollapsed
+                        ? Column(
+                            children: [
+                              SizedBox(height: 16),
+                              Container(
+                                width: 80,
+                                alignment: Alignment.center,
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.add_circle_outline,
+                                    size: 24,
+                                  ),
+                                  onPressed: _createNewSession,
+                                  tooltip: 'New Chat',
                                 ),
-                                onPressed: _createNewSession,
-                                tooltip: 'New Chat',
                               ),
-                            ),
-                            Expanded(
-                              child: SizedBox(),
-                            ),
-                          ],
-                        )
-                      : ClipRRect(
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(10),
-                                  child: InkWell(
-                                    onTap: _createNewSession,
+                              Expanded(
+                                child: SizedBox(),
+                              ),
+                            ],
+                          )
+                        : ClipRRect(
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: InkWell(
+                                      onTap: _createNewSession,
+                                      child: Container(
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? Color(0xFF8B5CF6)
+                                                  .withOpacity(0.1)
+                                              : Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color:
+                                                Theme.of(context).brightness ==
+                                                        Brightness.dark
+                                                    ? Color(0xFF8B5CF6)
+                                                        .withOpacity(0.2)
+                                                    : Colors.grey.shade300,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.add_circle_outline,
+                                                size: 20),
+                                            SizedBox(width: 8),
+                                            Text('New Chat',
+                                                style: GoogleFonts.getFont(
+                                                        Util.appFont)
+                                                    .copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                )),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10),
                                     child: Container(
-                                      padding: EdgeInsets.symmetric(vertical: 12),
                                       decoration: BoxDecoration(
                                         color: Theme.of(context).brightness ==
                                                 Brightness.dark
-                                            ? Color(0xFF8B5CF6).withOpacity(0.1)
-                                            : Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? Color(0xFF8B5CF6).withOpacity(0.2)
-                                              : Colors.grey.shade300,
-                                        ),
+                                            ? Color(0xFF2D2E32).withOpacity(0.3)
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.add_circle_outline,
-                                              color: Color(0xFF8B5CF6), size: 20),
-                                          SizedBox(width: 8),
-                                          Text('New Chat',
-                                              style: GoogleFonts.getFont(
-                                                      Util.appFont)
+                                      child: TextField(
+                                        controller: _searchController,
+                                        onChanged: _handleSearch,
+                                        style: GoogleFonts.getFont(Util.appFont)
+                                            .copyWith(color: Colors.white),
+                                        decoration: InputDecoration(
+                                          hintText: 'Search chats...',
+                                          hintStyle:
+                                              GoogleFonts.getFont(Util.appFont)
                                                   .copyWith(
-                                                color: Color(0xFF8B5CF6),
-                                                fontWeight: FontWeight.w600,
-                                              )),
-                                        ],
+                                                      color: Colors.white38),
+                                          prefixIcon: Icon(Icons.search,
+                                              color: Colors.white38, size: 20),
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.symmetric(
+                                              horizontal: 16, vertical: 12),
+                                        ),
+                                        cursorColor: Color(0xFF8B5CF6),
                                       ),
                                     ),
                                   ),
-                                ),
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 10),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? Color(0xFF2D2E32).withOpacity(0.3)
-                                          : Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: TextField(
-                                      controller: _searchController,
-                                      onChanged: _handleSearch,
-                                      style: GoogleFonts.getFont(Util.appFont)
-                                          .copyWith(color: Colors.white),
-                                      decoration: InputDecoration(
-                                        hintText: 'Search chats...',
-                                        hintStyle:
-                                            GoogleFonts.getFont(Util.appFont)
-                                                .copyWith(color: Colors.white38),
-                                        prefixIcon: Icon(Icons.search,
-                                            color: Colors.white38, size: 20),
-                                        border: InputBorder.none,
-                                        contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 12),
-                                      ),
-                                      cursorColor: Color(0xFF8B5CF6),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 16),
-                                Expanded(
-                                  flex: 6,
-                                  child: ListView.builder(
-                                    controller: _sessionsScrollController,
-                                    itemCount: (_isSearching
-                                                ? _filteredSessions
-                                                : sessions)
-                                            .length +
-                                        (_isLoadingMoreSessions ? 1 : 0),
-                                    itemBuilder: (context, index) {
-                                      if (index ==
-                                          (_isSearching
+                                  SizedBox(height: 16),
+                                  Expanded(
+                                    flex: 6,
+                                    child: ListView.builder(
+                                      controller: _sessionsScrollController,
+                                      itemCount: (_isSearching
                                                   ? _filteredSessions
                                                   : sessions)
-                                              .length) {
-                                        return Center(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: CircularProgressIndicator(),
-                                          ),
-                                        );
-                                      }
-                                      final session = _isSearching
-                                          ? _filteredSessions[index]
-                                          : sessions[index];
-                                      return _buildSessionTile(session);
-                                    },
+                                              .length +
+                                          (_isLoadingMoreSessions ? 1 : 0),
+                                      itemBuilder: (context, index) {
+                                        if (index ==
+                                            (_isSearching
+                                                    ? _filteredSessions
+                                                    : sessions)
+                                                .length) {
+                                          return Center(
+                                            child: Padding(
+                                              padding: EdgeInsets.all(8.0),
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            ),
+                                          );
+                                        }
+                                        final session = _isSearching
+                                            ? _filteredSessions[index]
+                                            : sessions[index];
+                                        return _buildSessionTile(session);
+                                      },
+                                    ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: SizedBox(),
-                                  flex: 1,
-                                ),
-                              ],
+                                  Expanded(
+                                    child: SizedBox(),
+                                    flex: 1,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
+                  ),
+                  Positioned(
+                    bottom: 25,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF1E1B2C),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF8B5CF6).withOpacity(0.1),
+                              blurRadius: 8,
+                            ),
+                          ],
                         ),
-                ),
-                Positioned(
-                  bottom: 25,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF1E1B2C),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xFF8B5CF6).withOpacity(0.1),
-                            blurRadius: 8,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            isSidebarCollapsed
+                                ? Icons.chevron_right
+                                : Icons.chevron_left,
                           ),
-                        ],
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          isSidebarCollapsed
-                              ? Icons.chevron_right
-                              : Icons.chevron_left,
-                          color: Color(0xFF8B5CF6),
+                          onPressed: _toggleSidebar,
+                          tooltip: isSidebarCollapsed
+                              ? 'Expand Sidebar'
+                              : 'Collapse Sidebar',
                         ),
-                        onPressed: _toggleSidebar,
-                        tooltip: isSidebarCollapsed
-                            ? 'Expand Sidebar'
-                            : 'Collapse Sidebar',
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            Expanded(child: _buildChatArea()),
-          ],
+                ],
+              ),
+              Expanded(child: _buildChatArea()),
+            ],
+          ),
         ),
       ),
     );
@@ -1760,64 +1777,63 @@ class _ChatPageState extends State<ChatPage>
                       );
                     }
 
-                    return Stack(
+                    return Column(
                       children: [
-                        Column(
-                          children: [
-                            Expanded(
-                              child: Stack(
-                                children: [
-                                  CustomScrollView(
-                                    key: _listKey,
-                                    controller: _scrollController,
-                                    cacheExtent: 1000,
-                                    physics: SmoothScrollBehavior()
-                                        .getScrollPhysics(context),
-                                    slivers: [
-                                      if (_isLoadingMoreChats)
-                                        SliverToBoxAdapter(
-                                          child: Center(
-                                            child: Padding(
-                                              padding: EdgeInsets.all(8.0),
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
+                        Expanded(
+                          child: (chats.isEmpty && currentSession != null) ||
+                                  sessions.isEmpty
+                              ? PresetPromptsGrid(
+                                  onPromptSelected: (prompt) {
+                                    _chatController.text = prompt;
+                                  },
+                                )
+                              : CustomScrollView(
+                                  key: _listKey,
+                                  controller: _scrollController,
+                                  cacheExtent: 1000,
+                                  physics: SmoothScrollBehavior()
+                                      .getScrollPhysics(context),
+                                  slivers: [
+                                    if (_isLoadingMoreChats)
+                                      SliverToBoxAdapter(
+                                        child: Center(
+                                          child: Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: CircularProgressIndicator(),
                                           ),
                                         ),
-                                      SliverList(
-                                        delegate: SliverChildBuilderDelegate(
-                                          (context, index) {
-                                            if (index >= chats.length)
-                                              return null;
-                                            return RepaintBoundary(
-                                              child: KeyedSubtree(
-                                                key: ValueKey(
-                                                    'chat_${chats[index].id}'),
-                                                child: _buildChatBubble(
-                                                  chats[index],
-                                                  index == chats.length - 1,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          childCount: chats.length,
-                                        ),
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ChatInput(
-                              controller: _chatController,
-                              isStreaming: _isStreaming,
-                              selectedFiles: _selectedFiles,
-                              onSend: _sendMessage,
-                              onPickFiles: _pickFiles,
-                              onRemoveFile: _removeFile,
-                              onStopGeneration: _stopGeneration,
-                            ),
-                          ],
+                                    SliverList(
+                                      delegate: SliverChildBuilderDelegate(
+                                        (context, index) {
+                                          if (index >= chats.length)
+                                            return null;
+                                          return RepaintBoundary(
+                                            child: KeyedSubtree(
+                                              key: ValueKey(
+                                                  'chat_${chats[index].id}'),
+                                              child: _buildChatBubble(
+                                                chats[index],
+                                                index == chats.length - 1,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        childCount: chats.length,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        ChatInput(
+                          controller: _chatController,
+                          isStreaming: _isStreaming,
+                          selectedFiles: _selectedFiles,
+                          onSend: _sendMessage,
+                          onPickFiles: _pickFiles,
+                          onRemoveFile: _removeFile,
+                          onStopGeneration: _stopGeneration,
+                          onFilesDropped: _handleDroppedFiles,
                         ),
                       ],
                     );
@@ -2046,37 +2062,6 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
-  Widget _buildThinkingIndicator() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Olla AI',
-              style: GoogleFonts.getFont(Util.appFont)
-                  .copyWith(color: Colors.white)),
-          SizedBox(width: 8),
-          FadeTransition(
-            opacity: _thinkingAnimation,
-            child: Row(
-              children: List.generate(3, (index) {
-                return Container(
-                  width: 4,
-                  height: 4,
-                  margin: EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF8B5CF6),
-                    shape: BoxShape.circle,
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _toggleThinking() {
     setState(() {
       _showThinking = !_showThinking;
@@ -2101,145 +2086,6 @@ class _ChatPageState extends State<ChatPage>
     });
   }
 
-  // Update the _loadChatsForSession method
-  Future<void> _loadChatsForSession(ChatSession session,
-      {bool initial = false}) async {
-    if (initial) {
-      _hasMoreChats = true;
-      _isLoadingMoreChats = false;
-    }
-
-    if (_isLoadingMoreChats || !_hasMoreChats) return;
-
-    try {
-      // Use compute to move heavy work to another isolate
-      final result = await compute<Map<String, dynamic>, Map<String, dynamic>>(
-        _loadChatsIsolate,
-        {
-          'sessionId': session.id,
-          'limit': _chatsLimit,
-          'initial': initial,
-          'oldestTimestamp':
-              initial ? null : chats.firstOrNull?.timestamp.toIso8601String(),
-        },
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        if (initial) {
-          chats = (result['chats'] as List).cast<Chat>();
-          _hasMoreChats = result['hasMore'] as bool;
-        } else {
-          chats.insertAll(0, (result['chats'] as List).cast<Chat>());
-          _hasMoreChats = result['hasMore'] as bool;
-        }
-      });
-    } catch (e) {
-      print('Error loading chats: $e');
-      // Fallback to synchronous loading if compute fails
-      _loadChatsSync(session, initial: initial);
-    }
-  }
-
-  // Add synchronous fallback method
-  Future<void> _loadChatsSync(ChatSession session,
-      {bool initial = false}) async {
-    try {
-      final query = chatBox
-          .query(Chat_.chatSession.equals(session.id))
-          .order(Chat_.timestamp)
-          .build();
-
-      final allChats = query.find();
-      final totalChats = allChats.length;
-
-      if (initial) {
-        final initialChats = totalChats > _chatsLimit
-            ? allChats.skip(totalChats - _chatsLimit).toList()
-            : allChats;
-
-        if (!mounted) return;
-
-        setState(() {
-          chats = initialChats;
-          _hasMoreChats = totalChats > _chatsLimit;
-        });
-      } else {
-        if (chats.isEmpty || chats.length >= totalChats) {
-          _hasMoreChats = false;
-          return;
-        }
-
-        final oldestTimestamp = chats.first.timestamp;
-        final olderChats = allChats
-            .where((chat) => chat.timestamp.isBefore(oldestTimestamp))
-            .take(_chatsLimit)
-            .toList();
-
-        if (olderChats.isEmpty) {
-          _hasMoreChats = false;
-          return;
-        }
-
-        if (!mounted) return;
-
-        setState(() {
-          chats.insertAll(0, olderChats);
-        });
-      }
-    } catch (e) {
-      print('Error in _loadChatsSync: $e');
-    }
-  }
-
-  // Update the isolate function to properly handle serialization
-  Future<Map<String, dynamic>> _loadChatsIsolate(
-      Map<String, dynamic> params) async {
-    // Initialize with the passed token
-    BackgroundIsolateBinaryMessenger.ensureInitialized(
-        params['rootIsolateToken'] as RootIsolateToken);
-
-    // Create a new store instead of attaching
-    final store = Store(getObjectBoxModel(),
-        directory: '${params['storeDir']}/objectbox');
-
-    final chatBox = store.box<Chat>();
-
-    try {
-      final query = chatBox
-          .query(Chat_.chatSession.equals(params['sessionId'] as int))
-          .order(Chat_.timestamp) // Change to normal order
-          .build();
-
-      final totalChats = query.count();
-      final limit = params['limit'] as int;
-      final initial = params['initial'] as bool;
-      final oldestTimestamp = params['oldestTimestamp'] as String?;
-
-      List<Chat> loadedChats;
-      if (initial) {
-        loadedChats = query.find().reversed.take(limit).toList();
-      } else {
-        final timestamp = DateTime.parse(oldestTimestamp!);
-        loadedChats = query
-            .find()
-            .where((chat) => chat.timestamp.isBefore(timestamp))
-                .take(limit)
-                .toList()
-                .reversed
-                .toList();
-      }
-
-      return {
-        'chats': loadedChats,
-        'hasMore': totalChats > (initial ? limit : loadedChats.length + limit),
-      };
-    } finally {
-      store.close();
-    }
-  }
-
   // Add this method
   void _removeFile(PlatformFile file) {
     setState(() {
@@ -2251,5 +2097,27 @@ class _ChatPageState extends State<ChatPage>
   bool _isImageFile(String extension) {
     final imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
     return imageExtensions.contains(extension.toLowerCase());
+  }
+
+  // Add this method to handle dropped files
+  void _handleDroppedFiles(List<PlatformFile> files) {
+    setState(() {
+      // Add new files to existing ones, up to a maximum of 10 files total
+      final newFiles = files.take(10 - _selectedFiles.length).toList();
+      _selectedFiles = [..._selectedFiles, ...newFiles];
+      if (_selectedFiles.length > 10) {
+        _selectedFiles = _selectedFiles.take(10).toList();
+        // Show warning if files were skipped
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Maximum 10 files allowed',
+              style: GoogleFonts.getFont(Util.appFont),
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    });
   }
 }
