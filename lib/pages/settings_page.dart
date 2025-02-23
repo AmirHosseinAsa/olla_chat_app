@@ -13,6 +13,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 import '../pages/models_page.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -64,8 +66,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveFont(String font) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selectedFont', font);
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    await themeProvider.setFont(font);
     setState(() {
       selectedFont = font;
       Util.appFont = font;

@@ -35,10 +35,11 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 - [X] install models via app
 - [X] clear history
 - [X] add vision support
-- [ ] Voice to text
+- [X] improve tts reading
+- [X] improve formating
+- [X] improve ui and general design
 - [ ] relase app build
 - [ ] make toturial video
-- [ ] Web search
 - [ ] add dark and white mode
 
 ## Getting Started

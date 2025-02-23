@@ -15,7 +15,6 @@ import 'package:file_picker/file_picker.dart';
 import 'settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'models_page.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -24,6 +23,20 @@ import 'package:excel/excel.dart' as excel;
 import '../objectbox/objectbox.dart';
 
 const String kDefaultModelKey = 'default_model';
+
+// Add custom scroll behavior
+class SmoothScrollBehavior extends ScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    ).applyTo(
+      const ScrollPhysics(
+        parent: RangeMaintainingScrollPhysics(),
+      ),
+    );
+  }
+}
 
 class ChatPage extends StatefulWidget {
   const ChatPage({
@@ -437,20 +450,39 @@ class _ChatPageState extends State<ChatPage>
         (res) {
           if (!mounted) return;
           if (res.message?.content != null) {
-            setState(() {
-              botChat.message += res.message!.content;
-              chatBox.put(botChat);
-              chats = List.from(chats);
-            });
+            // Update the message without setState to avoid rebuilds
+            botChat.message += res.message!.content;
+            chatBox.put(botChat);
 
-            // Only auto-scroll if enabled
-            if (_shouldAutoScroll) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && _shouldAutoScroll) {
-                  _scrollController
-                      .jumpTo(_scrollController.position.maxScrollExtent);
-                }
+            // Force only the chat list to rebuild
+            if (mounted) {
+              setState(() {
+                chats = List.from(chats);
               });
+            }
+
+            // Handle streaming scroll
+            if (_shouldAutoScroll && _scrollController.hasClients) {
+              final maxScroll = _scrollController.position.maxScrollExtent;
+              final currentScroll = _scrollController.position.pixels;
+
+              // If we're close to the bottom, keep scrolling
+              if (maxScroll - currentScroll < 100) {
+                // Calculate small increments for smoother appearance
+                final targetScroll = maxScroll;
+                final increment = (targetScroll - currentScroll) * 0.1;
+
+                _scrollController.jumpTo(currentScroll + increment);
+
+                // Final small animation to ensure we reach the bottom
+                if (maxScroll - (currentScroll + increment) < 10) {
+                  _scrollController.animateTo(
+                    maxScroll,
+                    duration: Duration(milliseconds: 10),
+                    curve: Curves.linear,
+                  );
+                }
+              }
             }
           }
         },
@@ -509,6 +541,10 @@ class _ChatPageState extends State<ChatPage>
       setState(() {
         isSpeaking = false;
       });
+    }
+
+    if (_isStreaming) {
+      _stopGeneration();
     }
 
     setState(() {
@@ -697,20 +733,39 @@ class _ChatPageState extends State<ChatPage>
         (res) {
           if (!mounted) return;
           if (res.message?.content != null) {
-            setState(() {
-              botChat.message += res.message!.content;
-              chatBox.put(botChat);
-              chats = List.from(chats);
-            });
+            // Update the message without setState to avoid rebuilds
+            botChat.message += res.message!.content;
+            chatBox.put(botChat);
 
-            // Only auto-scroll if enabled
-            if (_shouldAutoScroll) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && _shouldAutoScroll) {
-                  _scrollController
-                      .jumpTo(_scrollController.position.maxScrollExtent);
-                }
+            // Force only the chat list to rebuild
+            if (mounted) {
+              setState(() {
+                chats = List.from(chats);
               });
+            }
+
+            // Handle streaming scroll
+            if (_shouldAutoScroll && _scrollController.hasClients) {
+              final maxScroll = _scrollController.position.maxScrollExtent;
+              final currentScroll = _scrollController.position.pixels;
+
+              // If we're close to the bottom, keep scrolling
+              if (maxScroll - currentScroll < 100) {
+                // Calculate small increments for smoother appearance
+                final targetScroll = maxScroll;
+                final increment = (targetScroll - currentScroll) * 0.1;
+
+                _scrollController.jumpTo(currentScroll + increment);
+
+                // Final small animation to ensure we reach the bottom
+                if (maxScroll - (currentScroll + increment) < 10) {
+                  _scrollController.animateTo(
+                    maxScroll,
+                    duration: Duration(milliseconds: 10),
+                    curve: Curves.linear,
+                  );
+                }
+              }
             }
           }
         },
@@ -963,9 +1018,11 @@ class _ChatPageState extends State<ChatPage>
         .replaceAll(RegExp(r'#{1,6}\s.*'), '') // Remove headers
         .replaceAll(RegExp(r'\*\*(.*?)\*\*'), '') // Clean bold text
         .replaceAll(RegExp(r'\|(.*?)\|'), '') // Clean table syntax
-        .replaceAll(RegExp(r'<think>.*?</think>', dotAll: true), '') // Remove thinking blocks
+        .replaceAll(RegExp(r'<think>.*?</think>', dotAll: true),
+            '') // Remove thinking blocks
         .replaceAll(RegExp(r'\$\d+'), '') // Remove dollar signs with numbers
-        .replaceAll(RegExp(r'[\n\r\t]+'), ' ') // Replace newlines and tabs with spaces
+        .replaceAll(
+            RegExp(r'[\n\r\t]+'), ' ') // Replace newlines and tabs with spaces
         .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
         .trim();
 
@@ -977,8 +1034,7 @@ class _ChatPageState extends State<ChatPage>
       return;
     }
 
-    String processedText = text
-        .trim();
+    String processedText = text.trim();
 
     setState(() {
       isSpeaking = true;
@@ -987,7 +1043,6 @@ class _ChatPageState extends State<ChatPage>
     try {
       await flutterTts.speak(processedText);
     } catch (e) {
-      print('TTS error: $e');
       setState(() {
         isSpeaking = false;
       });
@@ -1145,13 +1200,21 @@ class _ChatPageState extends State<ChatPage>
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
 
-    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent+100,
+      duration: Duration(milliseconds: 150), // Faster duration for streaming
+      curve: Curves.easeInOut, // Smoother curve for streaming
+    );
   }
 
   void _onScroll() {
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
-    final isNearBottom = maxScroll - currentScroll <= 50;
+    bool isNearBottom = maxScroll - currentScroll <= 100;
+
+    if (currentSession == null) {
+      isNearBottom = false;
+    }
 
     // If user is scrolling up during streaming, disable auto-scroll
     if (_isStreaming && !isNearBottom && _shouldAutoScroll) {
@@ -1176,319 +1239,333 @@ class _ChatPageState extends State<ChatPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Color(0xFF1E1B2C),
-        elevation: 0,
-        title: Row(
-          children: [
-            Text(
-              'Olla Chat',
-              style: GoogleFonts.getFont(
-                Util.appFont,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.white70,
-              ),
-            ),
-            if (availableModels.isNotEmpty)
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                margin: EdgeInsets.symmetric(horizontal: 15),
-                child: DropdownButton<String>(
-                  value: selectedModel,
-                  icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
-                  underline: SizedBox(),
-                  dropdownColor: Color(0xFF1E1B2C),
-                  items: availableModels.map((model) {
-                    return DropdownMenuItem(
-                      value: model.model,
-                      child: Text(
-                        model.model ?? "",
-                        style: GoogleFonts.getFont(
-                          Util.appFont,
-                          fontSize: 14,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) async {
-                    if (value != null) {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.setString(kDefaultModelKey, value);
-
-                      setState(() {
-                        selectedModel = value;
-                        if (currentSession != null) {
-                          currentSession!.modelName = value;
-                          sessionBox.put(currentSession!);
-                        }
-                      });
-                    }
-                  },
+    return Theme(
+      data: Theme.of(context).copyWith(
+        textSelectionTheme: TextSelectionThemeData(
+          selectionColor: Color.fromARGB(255, 109, 67, 199).withOpacity(0.3),
+          cursorColor: Color.fromARGB(255, 47, 11, 129),
+          selectionHandleColor: Color(0xFF8B5CF6),
+        ),
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Color(0xFF1E1B2C),
+          elevation: 0,
+          title: Row(
+            children: [
+              Text(
+                'Olla Chat',
+                style: GoogleFonts.getFont(
+                  Util.appFont,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
                 ),
               ),
+              if (availableModels.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  margin: EdgeInsets.symmetric(horizontal: 15),
+                  child: DropdownButton<String>(
+                    value: selectedModel,
+                    icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
+                    underline: SizedBox(),
+                    dropdownColor: Color(0xFF1E1B2C),
+                    items: availableModels.map((model) {
+                      return DropdownMenuItem(
+                        value: model.model,
+                        child: Text(
+                          model.model ?? "",
+                          style: GoogleFonts.getFont(
+                            Util.appFont,
+                            fontSize: 14,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) async {
+                      if (value != null) {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString(kDefaultModelKey, value);
+
+                        setState(() {
+                          selectedModel = value;
+                          if (currentSession != null) {
+                            currentSession!.modelName = value;
+                            sessionBox.put(currentSession!);
+                          }
+                        });
+                      }
+                    },
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            // Toggle thinking visualization
+            IconButton(
+              icon: Icon(
+                _showThinking ? Icons.psychology : Icons.psychology_outlined,
+                color: _showThinking
+                    ? Util.primaryPurple
+                    : Theme.of(context).iconTheme.color,
+                size: 22,
+              ),
+              onPressed: _toggleThinking,
+              tooltip: 'Toggle thinking process',
+            ),
+            // Voice selector
+            IconButton(
+              icon: Icon(
+                Icons.settings_voice,
+                color: Theme.of(context).iconTheme.color,
+                size: 22,
+              ),
+              onPressed: _showVoiceSelector,
+              tooltip: 'Select voice',
+            ),
+            // Manage Models
+            IconButton(
+              icon: Icon(
+                Icons.model_training,
+                color: Theme.of(context).iconTheme.color,
+                size: 22,
+              ),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ModelsPage()),
+                );
+                // Refresh models when returning from Models page
+                _loadAvailableModels();
+              },
+              tooltip: 'Manage Models',
+            ),
+            // Settings
+            IconButton(
+              icon: Icon(
+                Icons.settings,
+                color: Theme.of(context).iconTheme.color,
+                size: 22,
+              ),
+              onPressed: () async {
+                final shouldReload = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SettingsPage()),
+                );
+                // If data was cleared, reload sessions and reset current state
+                if (shouldReload == true) {
+                  setState(() {
+                    currentSession = null;
+                    chats = [];
+                    sessions = [];
+                  });
+                  _loadSessions();
+                }
+              },
+              tooltip: 'Settings',
+            ),
+            SizedBox(width: 8),
           ],
         ),
-        actions: [
-          // Toggle thinking visualization
-          IconButton(
-            icon: Icon(
-              _showThinking ? Icons.psychology : Icons.psychology_outlined,
-              color: _showThinking
-                  ? Util.primaryPurple
-                  : Theme.of(context).iconTheme.color,
-              size: 22,
-            ),
-            onPressed: _toggleThinking,
-            tooltip: 'Toggle thinking process',
-          ),
-          // Voice selector
-          IconButton(
-            icon: Icon(
-              Icons.settings_voice,
-              color: Theme.of(context).iconTheme.color,
-              size: 22,
-            ),
-            onPressed: _showVoiceSelector,
-            tooltip: 'Select voice',
-          ),
-          // Manage Models
-          IconButton(
-            icon: Icon(
-              Icons.model_training,
-              color: Theme.of(context).iconTheme.color,
-              size: 22,
-            ),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => ModelsPage()),
-              );
-              // Refresh models when returning from Models page
-              _loadAvailableModels();
-            },
-            tooltip: 'Manage Models',
-          ),
-          // Settings
-          IconButton(
-            icon: Icon(
-              Icons.settings,
-              color: Theme.of(context).iconTheme.color,
-              size: 22,
-            ),
-            onPressed: () async {
-              final shouldReload = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SettingsPage()),
-              );
-              // If data was cleared, reload sessions and reset current state
-              if (shouldReload == true) {
-                setState(() {
-                  currentSession = null;
-                  chats = [];
-                  sessions = [];
-                });
-                _loadSessions();
-              }
-            },
-            tooltip: 'Settings',
-          ),
-          SizedBox(width: 8),
-        ],
-      ),
-      body: Row(
-        children: [
-          Stack(
-            children: [
-              AnimatedContainer(
-                duration: Duration(milliseconds: 200),
-                width: isSidebarCollapsed ? 80 : 250,
-                decoration: BoxDecoration(
-                  color: Color(0xFF1E1B2C).withOpacity(0.9),
-                  borderRadius: isSidebarCollapsed
-                      ? BorderRadius.only(
-                          topRight: Radius.circular(24),
-                          bottomRight: Radius.circular(24),
-                        )
-                      : BorderRadius.zero,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0xFF8B5CF6).withOpacity(0.1),
-                      blurRadius: 24,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: isSidebarCollapsed
-                    ? Column(
-                        children: [
-                          SizedBox(height: 16),
-                          Container(
-                            width: 80,
-                            alignment: Alignment.center,
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.add_circle_outline,
-                                color: Color(0xFF8B5CF6),
-                                size: 24,
+        body: Row(
+          children: [
+            Stack(
+              children: [
+                AnimatedContainer(
+                  duration: Duration(milliseconds: 200),
+                  width: isSidebarCollapsed ? 80 : 250,
+                  decoration: BoxDecoration(
+                    color: Color(0xFF1E1B2C).withOpacity(0.9),
+                    borderRadius: isSidebarCollapsed
+                        ? BorderRadius.only(
+                            topRight: Radius.circular(24),
+                            bottomRight: Radius.circular(24),
+                          )
+                        : BorderRadius.zero,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF8B5CF6).withOpacity(0.1),
+                        blurRadius: 24,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: isSidebarCollapsed
+                      ? Column(
+                          children: [
+                            SizedBox(height: 16),
+                            Container(
+                              width: 80,
+                              alignment: Alignment.center,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.add_circle_outline,
+                                  color: Color(0xFF8B5CF6),
+                                  size: 24,
+                                ),
+                                onPressed: _createNewSession,
+                                tooltip: 'New Chat',
                               ),
-                              onPressed: _createNewSession,
-                              tooltip: 'New Chat',
                             ),
-                          ),
-                          Expanded(child: SizedBox(),),
-                        ],
-                      )
-                    : ClipRRect(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: InkWell(
-                                  onTap: _createNewSession,
+                            Expanded(
+                              child: SizedBox(),
+                            ),
+                          ],
+                        )
+                      : ClipRRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: InkWell(
+                                    onTap: _createNewSession,
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? Color(0xFF8B5CF6).withOpacity(0.1)
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? Color(0xFF8B5CF6).withOpacity(0.2)
+                                              : Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.add_circle_outline,
+                                              color: Color(0xFF8B5CF6), size: 20),
+                                          SizedBox(width: 8),
+                                          Text('New Chat',
+                                              style: GoogleFonts.getFont(
+                                                      Util.appFont)
+                                                  .copyWith(
+                                                color: Color(0xFF8B5CF6),
+                                                fontWeight: FontWeight.w600,
+                                              )),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 10),
                                   child: Container(
-                                    padding: EdgeInsets.symmetric(vertical: 12),
                                     decoration: BoxDecoration(
                                       color: Theme.of(context).brightness ==
                                               Brightness.dark
-                                          ? Color(0xFF8B5CF6).withOpacity(0.1)
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? Color(0xFF8B5CF6).withOpacity(0.2)
-                                            : Colors.grey.shade300,
+                                          ? Color(0xFF2D2E32).withOpacity(0.3)
+                                          : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: TextField(
+                                      controller: _searchController,
+                                      onChanged: _handleSearch,
+                                      style: GoogleFonts.getFont(Util.appFont)
+                                          .copyWith(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        hintText: 'Search chats...',
+                                        hintStyle:
+                                            GoogleFonts.getFont(Util.appFont)
+                                                .copyWith(color: Colors.white38),
+                                        prefixIcon: Icon(Icons.search,
+                                            color: Colors.white38, size: 20),
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 12),
                                       ),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.add_circle_outline,
-                                            color: Color(0xFF8B5CF6), size: 20),
-                                        SizedBox(width: 8),
-                                        Text('New Chat',
-                                            style: GoogleFonts.getFont(
-                                                    Util.appFont)
-                                                .copyWith(
-                                              color: Color(0xFF8B5CF6),
-                                              fontWeight: FontWeight.w600,
-                                            )),
-                                      ],
+                                      cursorColor: Color(0xFF8B5CF6),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 10),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? Color(0xFF2D2E32).withOpacity(0.3)
-                                        : Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: TextField(
-                                    controller: _searchController,
-                                    onChanged: _handleSearch,
-                                    style: GoogleFonts.getFont(Util.appFont)
-                                        .copyWith(color: Colors.white),
-                                    decoration: InputDecoration(
-                                      hintText: 'Search chats...',
-                                      hintStyle:
-                                          GoogleFonts.getFont(Util.appFont)
-                                              .copyWith(color: Colors.white38),
-                                      prefixIcon: Icon(Icons.search,
-                                          color: Colors.white38, size: 20),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 12),
-                                    ),
-                                    cursorColor: Color(0xFF8B5CF6),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: 16),
-                              Expanded(
-                                flex: 6,
-                                child: ListView.builder(
-                                  controller: _sessionsScrollController,
-                                  itemCount: (_isSearching
-                                              ? _filteredSessions
-                                              : sessions)
-                                          .length +
-                                      (_isLoadingMoreSessions ? 1 : 0),
-                                  itemBuilder: (context, index) {
-                                    if (index ==
-                                        (_isSearching
+                                SizedBox(height: 16),
+                                Expanded(
+                                  flex: 6,
+                                  child: ListView.builder(
+                                    controller: _sessionsScrollController,
+                                    itemCount: (_isSearching
                                                 ? _filteredSessions
                                                 : sessions)
-                                            .length) {
-                                      return Center(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      );
-                                    }
-                                    final session = _isSearching
-                                        ? _filteredSessions[index]
-                                        : sessions[index];
-                                    return _buildSessionTile(session);
-                                  },
+                                            .length +
+                                        (_isLoadingMoreSessions ? 1 : 0),
+                                    itemBuilder: (context, index) {
+                                      if (index ==
+                                          (_isSearching
+                                                  ? _filteredSessions
+                                                  : sessions)
+                                              .length) {
+                                        return Center(
+                                          child: Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        );
+                                      }
+                                      final session = _isSearching
+                                          ? _filteredSessions[index]
+                                          : sessions[index];
+                                      return _buildSessionTile(session);
+                                    },
+                                  ),
                                 ),
-                              ),
-                              Expanded(child: SizedBox(), flex: 1,),
-                            ],
+                                Expanded(
+                                  child: SizedBox(),
+                                  flex: 1,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
+                ),
+                Positioned(
+                  bottom: 25,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF1E1B2C),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0xFF8B5CF6).withOpacity(0.1),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
-              ),
-              Positioned(
-                bottom: 25,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xFF1E1B2C),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0xFF8B5CF6).withOpacity(0.1),
-                          blurRadius: 8,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          isSidebarCollapsed
+                              ? Icons.chevron_right
+                              : Icons.chevron_left,
+                          color: Color(0xFF8B5CF6),
                         ),
-                      ],
-                    ),
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: Icon(
-                        isSidebarCollapsed
-                            ? Icons.chevron_right
-                            : Icons.chevron_left,
-                        color: Color(0xFF8B5CF6),
+                        onPressed: _toggleSidebar,
+                        tooltip: isSidebarCollapsed
+                            ? 'Expand Sidebar'
+                            : 'Collapse Sidebar',
                       ),
-                      onPressed: _toggleSidebar,
-                      tooltip: isSidebarCollapsed
-                          ? 'Expand Sidebar'
-                          : 'Collapse Sidebar',
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          Expanded(child: _buildChatArea()),
-        ],
+              ],
+            ),
+            Expanded(child: _buildChatArea()),
+          ],
+        ),
       ),
     );
   }
@@ -1694,8 +1771,8 @@ class _ChatPageState extends State<ChatPage>
                                     key: _listKey,
                                     controller: _scrollController,
                                     cacheExtent: 1000,
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
+                                    physics: SmoothScrollBehavior()
+                                        .getScrollPhysics(context),
                                     slivers: [
                                       if (_isLoadingMoreChats)
                                         SliverToBoxAdapter(
@@ -1935,7 +2012,7 @@ class _ChatPageState extends State<ChatPage>
           .build();
 
       final totalCount = query.count();
-      
+
       // If we've loaded all sessions, don't try to load more
       if (sessions.length >= totalCount) {
         setState(() {
@@ -1945,11 +2022,8 @@ class _ChatPageState extends State<ChatPage>
       }
 
       // Get all sessions and manually handle pagination
-      final moreSessions = query
-          .find()
-          .skip(sessions.length)
-          .take(_sessionsLimit)
-          .toList();
+      final moreSessions =
+          query.find().skip(sessions.length).take(_sessionsLimit).toList();
 
       if (moreSessions.isNotEmpty) {
         setState(() {
@@ -2100,8 +2174,8 @@ class _ChatPageState extends State<ChatPage>
         final oldestTimestamp = chats.first.timestamp;
         final olderChats = allChats
             .where((chat) => chat.timestamp.isBefore(oldestTimestamp))
-                .take(_chatsLimit)
-                .toList();
+            .take(_chatsLimit)
+            .toList();
 
         if (olderChats.isEmpty) {
           _hasMoreChats = false;

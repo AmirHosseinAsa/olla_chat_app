@@ -1,22 +1,44 @@
 import 'package:flutter/material.dart';
 import 'app_constants.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ThemeConstants {
+  // Cache themes to prevent unnecessary rebuilds
+  static ThemeData? _cachedDarkTheme;
+  static String? _cachedFont;
+  static Color? _cachedPrimaryColor;
+  static Color? _cachedSecondaryColor;
+
   static ThemeData getDarkTheme({
-    Color primaryColor = AppConstants.kPrimaryPurple,
-    Color secondaryColor = AppConstants.kPrimaryCyan,
+    required Color primaryColor,
+    required Color secondaryColor,
+    String font = 'Roboto',
   }) {
-    return ThemeData(
+    // Return cached theme if nothing changed
+    if (_cachedDarkTheme != null &&
+        _cachedFont == font &&
+        _cachedPrimaryColor == primaryColor &&
+        _cachedSecondaryColor == secondaryColor) {
+      return _cachedDarkTheme!;
+    }
+
+    // Cache the text styles to prevent rebuilding them for each text widget
+    final baseTextTheme = ThemeData.dark().textTheme;
+    final googleFont = GoogleFonts.getFont(font);
+    final textTheme = _createTextTheme(baseTextTheme, googleFont);
+
+    _cachedDarkTheme = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
       colorScheme: ColorScheme.dark(
         primary: primaryColor,
         secondary: secondaryColor,
-        surface: AppConstants.kDarkSurface,
-        background: AppConstants.kDarkBackground,
-        error: Colors.red.shade400,
       ),
-      scaffoldBackgroundColor: AppConstants.kDarkBackground,
+      textTheme: textTheme,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: Color(0xFF1A1B26),
+      cardColor: Color(0xFF1E1B2C),
+      dividerColor: Colors.white24,
+      iconTheme: IconThemeData(color: Colors.white70),
       appBarTheme: AppBarTheme(
         backgroundColor: AppConstants.kDarkSurface,
         elevation: 0,
@@ -161,6 +183,34 @@ class ThemeConstants {
           borderRadius: BorderRadius.circular(8),
         ),
       ),
+    );
+
+    // Update cache values
+    _cachedFont = font;
+    _cachedPrimaryColor = primaryColor;
+    _cachedSecondaryColor = secondaryColor;
+
+    return _cachedDarkTheme!;
+  }
+
+  // Extract text theme creation to reduce code duplication
+  static TextTheme _createTextTheme(TextTheme baseTheme, TextStyle googleFont) {
+    return baseTheme.copyWith(
+      displayLarge: googleFont.copyWith(color: Colors.white),
+      displayMedium: googleFont.copyWith(color: Colors.white),
+      displaySmall: googleFont.copyWith(color: Colors.white),
+      headlineLarge: googleFont.copyWith(color: Colors.white),
+      headlineMedium: googleFont.copyWith(color: Colors.white),
+      headlineSmall: googleFont.copyWith(color: Colors.white),
+      titleLarge: googleFont.copyWith(color: Colors.white),
+      titleMedium: googleFont.copyWith(color: Colors.white),
+      titleSmall: googleFont.copyWith(color: Colors.white),
+      bodyLarge: googleFont.copyWith(color: Colors.white),
+      bodyMedium: googleFont.copyWith(color: Colors.white),
+      bodySmall: googleFont.copyWith(color: Colors.white),
+      labelLarge: googleFont.copyWith(color: Colors.white),
+      labelMedium: googleFont.copyWith(color: Colors.white),
+      labelSmall: googleFont.copyWith(color: Colors.white),
     );
   }
 

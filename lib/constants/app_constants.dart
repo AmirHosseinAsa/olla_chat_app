@@ -43,9 +43,7 @@ class AppConstants {
   static const List<Color> kPrimaryColors = [
     Color(0xFF8B5CF6), // Default purple
     Color(0xFF3B82F6), // Blue
-    Color(0xFFEC4899), // Pink
     Color(0xFF10B981), // Green
-    Color(0xFFF97316), // Orange
   ];
 
   static const List<Color> kSecondaryColors = [
@@ -53,7 +51,6 @@ class AppConstants {
     Color(0xFF6EE7B7), // Mint
     Color(0xFFFBBF24), // Yellow
     Color(0xFF818CF8), // Indigo
-    Color(0xFFF472B6), // Light pink
   ];
 
   // File extensions

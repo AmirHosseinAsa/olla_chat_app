@@ -20,10 +20,8 @@ class Util {
   // Colors
   static const primaryPurple = Color(0xFF8B5CF6);
   static const primaryCyan = Color(0xFF22D3EE);
-  static const accentPink = Color(0xFFEC4899);
   static const accentGreen = Color(0xFF10B981);
   static const accentYellow = Color(0xFFFBBF24);
-  static const accentOrange = Color(0xFFF97316);
 
   // Dark theme colors
   static const darkSurface = Color(0xFF1E1B2C);
@@ -47,9 +45,7 @@ class Util {
   static const List<Color> primaryColors = [
     Color(0xFF8B5CF6), // Default purple
     Color(0xFF3B82F6), // Blue
-    Color(0xFFEC4899), // Pink
     Color(0xFF10B981), // Green
-    Color(0xFFF97316), // Orange
   ];
 
   static const List<Color> secondaryColors = [

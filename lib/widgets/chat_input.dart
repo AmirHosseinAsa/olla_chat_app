@@ -5,7 +5,7 @@ import '../utils/util.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
-class ChatInput extends StatelessWidget {
+class ChatInput extends StatefulWidget {
   final TextEditingController controller;
   final bool isStreaming;
   final List<PlatformFile> selectedFiles;
@@ -14,7 +14,7 @@ class ChatInput extends StatelessWidget {
   final Function(PlatformFile) onRemoveFile;
   final VoidCallback? onStopGeneration;
 
-  const ChatInput({
+  ChatInput({
     Key? key,
     required this.controller,
     required this.isStreaming,
@@ -24,6 +24,30 @@ class ChatInput extends StatelessWidget {
     required this.onRemoveFile,
     this.onStopGeneration,
   }) : super(key: key);
+
+  @override
+  State<ChatInput> createState() => _ChatInputState();
+}
+
+class _ChatInputState extends State<ChatInput> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  bool _isImageFile(String extension) {
+    final imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
+    return imageExtensions.contains(extension.toLowerCase());
+  }
 
   Widget _buildFilePreview(PlatformFile file) {
     if (_isImageFile(file.extension ?? '')) {
@@ -58,7 +82,7 @@ class ChatInput extends StatelessWidget {
                   icon: Icon(Icons.close, color: Colors.white, size: 16),
                   padding: EdgeInsets.all(4),
                   constraints: BoxConstraints(),
-                  onPressed: () => onRemoveFile(file),
+                  onPressed: () => widget.onRemoveFile(file),
                 ),
               ),
             ),
@@ -74,7 +98,7 @@ class ChatInput extends StatelessWidget {
           file.name,
           style: GoogleFonts.getFont(Util.appFont),
         ),
-        onDeleted: () => onRemoveFile(file),
+        onDeleted: () => widget.onRemoveFile(file),
         backgroundColor: Color(0xFF2D2E32).withOpacity(0.3),
         side: BorderSide(color: Color(0xFF8B5CF6).withOpacity(0.2)),
         labelStyle: GoogleFonts.getFont(Util.appFont).copyWith(
@@ -86,123 +110,131 @@ class ChatInput extends StatelessWidget {
     );
   }
 
-  bool _isImageFile(String extension) {
-    final imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
-    return imageExtensions.contains(extension.toLowerCase());
-  }
-
   @override
   Widget build(BuildContext context) {
     return RawKeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
+      focusNode: _focusNode,
       onKey: (event) {
-        if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-          if (isStreaming) {
-            onStopGeneration?.call();
+        if (event is RawKeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          if (widget.isStreaming) {
+            widget.onStopGeneration?.call();
+          }
+        }
+        if (event is RawKeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.enter &&
+            HardwareKeyboard.instance.isControlPressed &&
+            !widget.isStreaming) {
+          if (widget.controller.text.trim().isNotEmpty) {
+            widget.onSend(widget.controller.text);
+            widget.controller.clear();
           }
         }
       },
-      child: Padding(
+      child: Container(
         padding: const EdgeInsets.all(16.0),
-        child: Container(
-          width: MediaQuery.of(context).size.width / 1.22,
-          decoration: BoxDecoration(
-            color: Color(0xFF1E1B2C).withOpacity(0.9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Color(0xFF2D2E32),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0xFF8B5CF6).withOpacity(0.1),
-                blurRadius: 12,
-                offset: Offset(0, -4),
+        child: Center(
+          child: Container(
+            width: MediaQuery.of(context).size.width / 1.22,
+            decoration: BoxDecoration(
+              color: Color(0xFF1E1B2C).withOpacity(0.6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Color(0xFF2D2E32).withOpacity(0.8),
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (selectedFiles.isNotEmpty)
-                Container(
-                  padding: EdgeInsets.all(12),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: selectedFiles
-                        .map((file) => _buildFilePreview(file))
-                        .toList(),
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF8B5CF6).withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: Offset(0, 4),
                 ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.selectedFiles.isNotEmpty)
                   Container(
-                    padding: EdgeInsets.all(5),
-                    child: IconButton(
-                      icon: Icon(Icons.attach_file, color: Colors.white70),
-                      onPressed: onPickFiles,
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height / 1.8,
+                    padding:
+                        EdgeInsets.only(left: 4, right: 4, top: 8, bottom: 2),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: widget.selectedFiles
+                            .map((file) => _buildFilePreview(file))
+                            .toList(),
                       ),
-                      child: Focus(
-                          onKeyEvent: (node, event) {
-                            if (event is KeyDownEvent &&
-                                event.logicalKey == LogicalKeyboardKey.enter &&
-                                HardwareKeyboard.instance.isControlPressed) {
-                              if (!isStreaming) {
-                                onSend(controller.text);
-                                controller.clear();
-                              }
-                              return KeyEventResult.handled;
-                            }
-                            return KeyEventResult.ignored;
-                          },
-                          child: Padding(
-                            padding: EdgeInsets.all(3),
-                            child: TextField(
-                              controller: controller,
-                              decoration: InputDecoration(
-                                hintText: 'Type a message...',
-                                hintStyle: GoogleFonts.getFont(Util.appFont)
-                                    .copyWith(color: Colors.white38),
-                                contentPadding: EdgeInsets.all(16),
-                                border: InputBorder.none,
-                              ),
-                              cursorColor: Color(0xFF8B5CF6),
-                              keyboardType: TextInputType.multiline,
-                              maxLines: null,
-                              minLines: 1,
-                              textInputAction: TextInputAction.newline,
-                              enabled: true,
-                              style: GoogleFonts.getFont(Util.appFont)
-                                  .copyWith(color: Colors.white70),
-                            ),
-                          )),
                     ),
                   ),
-                  Container(
-                    padding: EdgeInsets.all(5),
-                    child: IconButton(
+                Row(
+                  children: [
+                    SizedBox(width: 8),
+                    IconButton(
                       icon: Icon(
-                        isStreaming ? Icons.stop : Icons.send,
-                        color: Colors.white38,
+                        Icons.attach_file,
+                        color: Colors.white.withOpacity(0.4),
+                        size: 20,
                       ),
-                      onPressed: isStreaming
-                          ? onStopGeneration
-                          : () {
-                              onSend(controller.text);
-                              controller.clear();
-                            },
+                      onPressed: widget.onPickFiles,
+                      splashRadius: 20,
+                      tooltip: 'Attach files',
                     ),
-                  )
-                ],
-              ),
-            ],
+                    Expanded(
+                      child: Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: TextField(
+                          controller: widget.controller,
+                          decoration: InputDecoration(
+                            hintText: 'Type a message...',
+                            hintStyle:
+                                GoogleFonts.getFont(Util.appFont).copyWith(
+                              color: Colors.white.withOpacity(0.3),
+                              fontSize: 14,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            border: InputBorder.none,
+                          ),
+                          cursorColor: Color(0xFF8B5CF6),
+                          keyboardType: TextInputType.multiline,
+                          maxLines: 5,
+                          minLines: 1,
+                          textInputAction: TextInputAction.send,
+                          style: GoogleFonts.getFont(Util.appFont).copyWith(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      margin: EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        tooltip:
+                            widget.isStreaming ? 'Stop (Esc)' : 'Send (Ctrl+Enter)',
+                        icon: Icon(
+                          widget.isStreaming ? Icons.stop : Icons.send,
+                          color: widget.controller.text.trim().isNotEmpty
+                              ? Color(0xFF8B5CF6)
+                              : Colors.white.withOpacity(0.3),
+                          size: 20,
+                        ),
+                        onPressed: widget.isStreaming
+                            ? widget.onStopGeneration
+                            : () {
+                                if (widget.controller.text.trim().isNotEmpty) {
+                                  widget.onSend(widget.controller.text);
+                                  widget.controller.clear();
+                                }
+                              },
+                        splashRadius: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

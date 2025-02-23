@@ -33,7 +33,7 @@ class SessionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: EdgeInsets.symmetric(vertical: 2),
       child: GestureDetector(
         onSecondaryTapUp: (details) =>
             onContextMenu(context, session, details.globalPosition),
@@ -45,39 +45,82 @@ class SessionTile extends StatelessWidget {
             MediaQuery.of(context).size.height / 3,
           ),
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected
-                ? Color(0xFF8B5CF6).withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? Color(0xFF8B5CF6).withOpacity(0.2)
-                  : Colors.transparent,
-            ),
-          ),
-          child: ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            title: Text(
-              session.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.getFont(Util.appFont).copyWith(
-                color: isSelected ? Color(0xFF8B5CF6) : Colors.white,
-                fontSize: 13,
-              ),
-            ),
-            subtitle: Text(
-              _formatDate(session.lastUpdatedAt),
-              style: GoogleFonts.getFont(Util.appFont).copyWith(
-                fontSize: 11,
-                color: Colors.white38,
-              ),
-            ),
-            selected: isSelected,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
             onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Color(0xFF8B5CF6).withOpacity(0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? Color(0xFF8B5CF6).withOpacity(0.15)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Color(0xFF8B5CF6).withOpacity(0.1)
+                          : Color(0xFF2D2E32).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isSelected
+                            ? Color(0xFF8B5CF6).withOpacity(0.2)
+                            : Color(0xFF2D2E32).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.chat_outlined,
+                      size: 14,
+                      color: isSelected
+                          ? Color(0xFF8B5CF6).withOpacity(0.8)
+                          : Colors.white.withOpacity(0.4),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          session.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.getFont(Util.appFont).copyWith(
+                            fontSize: 13,
+                            color: isSelected
+                                ? Color(0xFF8B5CF6).withOpacity(0.9)
+                                : Colors.white.withOpacity(0.8),
+                            fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          _formatDate(session.lastUpdatedAt),
+                          style: GoogleFonts.getFont(Util.appFont).copyWith(
+                            fontSize: 11,
+                            color: isSelected
+                                ? Color(0xFF8B5CF6).withOpacity(0.5)
+                                : Colors.white.withOpacity(0.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

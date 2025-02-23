@@ -122,57 +122,55 @@ class _ChatBubbleState extends State<ChatBubble>
   Widget build(BuildContext context) {
     super.build(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: widget.isUser
                       ? Colors.transparent
-                      : Color(0xFF8B5CF6).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                      : Color(0xFF8B5CF6).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: widget.isUser
-                        ? Color(0xFF2D2E32)
-                        : Color(0xFF8B5CF6).withOpacity(0.2),
-                    width: 1.5,
+                        ? Color(0xFF2D2E32).withOpacity(0.5)
+                        : Color(0xFF8B5CF6).withOpacity(0.15),
+                    width: 1,
                   ),
                 ),
                 child: Center(
                   child: widget.isUser
                       ? Icon(Icons.person_outline,
-                          size: 20, color: Colors.white70)
+                          size: 16, color: Colors.white.withOpacity(0.7))
                       : Icon(Icons.auto_awesome,
-                          size: 20, color: Color(0xFF8B5CF6)),
+                          size: 16, color: Color(0xFF8B5CF6).withOpacity(0.8)),
                 ),
               ),
               SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.isUser ? 'You' : 'OllaChat',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.9),
+              Text(
+                widget.isUser ? 'You' : 'OllaChat',
+                style: GoogleFonts.getFont(Util.appFont).copyWith(
+                  fontSize: 14  ,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
+              if (widget.isEdited)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    '(edited)',
+                    style: GoogleFonts.getFont(Util.appFont).copyWith(
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.4),
                     ),
                   ),
-                  if (widget.isEdited)
-                    Text(
-                      '(edited)',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.white70,
-                      ),
-                    ),
-                ],
-              ),
+                ),
               if (widget.isStreaming && !widget.isUser)
                 Padding(
                   padding: const EdgeInsets.only(left: 12),
@@ -180,32 +178,36 @@ class _ChatBubbleState extends State<ChatBubble>
                 ),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 8),
           Container(
-            margin: EdgeInsets.only(left: 48),
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? (widget.isUser
-                      ? Color(0xFF2D2E32).withOpacity(0.3)
-                      : Color(0xFF1E1B2C).withOpacity(0.4))
-                  : (widget.isUser ? Colors.grey.shade100 : Colors.white),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? (widget.isUser
-                        ? Color(0xFF2D2E32)
-                        : Color(0xFF8B5CF6).withOpacity(0.2))
-                    : Colors.grey.shade300,
-              ),
-            ),
+            margin: EdgeInsets.only(left: 44),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: EdgeInsets.all(20),
-                  child: _buildMessageContent(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: widget.isUser
+                        ? Color(0xFF2D2E32).withOpacity(0.2)
+                        : Color(0xFF1E1B2C).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: widget.isUser
+                          ? Color(0xFF2D2E32).withOpacity(0.3)
+                          : Color(0xFF8B5CF6).withOpacity(0.08),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.all(16),
+                        child: _buildMessageContent(),
+                      ),
+                      _buildActionBar(),
+                    ],
+                  ),
                 ),
-                _buildActionBar(),
               ],
             ),
           ),
@@ -223,10 +225,12 @@ class _ChatBubbleState extends State<ChatBubble>
 
   Widget _buildActionBar() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: Color(0xFF2D2E32)),
+          top: BorderSide(
+            color: Color(0xFF2D2E32).withOpacity(0.3),
+          ),
         ),
       ),
       child: Row(
@@ -234,33 +238,45 @@ class _ChatBubbleState extends State<ChatBubble>
         children: [
           if (widget.isUser && !_isEditing)
             IconButton(
-              icon: Icon(Icons.edit, size: 16),
+              icon: Icon(Icons.edit, size: 14),
               onPressed: () {
                 setState(() {
                   _isEditing = true;
                 });
               },
-              color: Colors.white70,
+              color: Colors.white.withOpacity(0.4),
+              padding: EdgeInsets.all(8),
+              constraints: BoxConstraints(),
+              splashRadius: 20,
             ),
           IconButton(
-            icon: Icon(Icons.copy, size: 16),
+            icon: Icon(Icons.copy, size: 14),
             onPressed: widget.onCopy,
-            color: Colors.white70,
+            color: Colors.white.withOpacity(0.4),
+            padding: EdgeInsets.all(8),
+            constraints: BoxConstraints(),
+            splashRadius: 20,
           ),
           if (!widget.isUser)
             IconButton(
               icon: Icon(
                 widget.isSpeaking ? Icons.stop : Icons.volume_up,
-                size: 16,
+                size: 14,
               ),
               onPressed: widget.onSpeak,
-              color: Colors.white70,
+              color: Colors.white.withOpacity(0.4),
+              padding: EdgeInsets.all(8),
+              constraints: BoxConstraints(),
+              splashRadius: 20,
             ),
           if (widget.onRegenerate != null)
             IconButton(
-              icon: Icon(Icons.refresh, size: 16),
+              icon: Icon(Icons.refresh, size: 14),
               onPressed: widget.onRegenerate,
-              color: Colors.white70,
+              color: Colors.white.withOpacity(0.4),
+              padding: EdgeInsets.all(8),
+              constraints: BoxConstraints(),
+              splashRadius: 20,
             ),
         ],
       ),
@@ -272,7 +288,7 @@ class _ChatBubbleState extends State<ChatBubble>
     if (widget.isUser) {
       return SelectableText(
         message,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.getFont(Util.appFont).copyWith(
           fontSize: 15,
           height: 1.6,
           color: Colors.white.withOpacity(0.78),
@@ -325,7 +341,8 @@ class _ChatBubbleState extends State<ChatBubble>
         // Multi-line code block
         final code = codeBlock
             .replaceAll(RegExp(r'^```\w*\s*\n?'), '') // Remove opening ```
-            .replaceAll(RegExp(r'\n?```$'), '') // Remove closing ``` if it exists
+            .replaceAll(
+                RegExp(r'\n?```$'), '') // Remove closing ``` if it exists
             .trim();
         if (code.isNotEmpty) {
           widgets.add(_buildCodeBlock(code));
@@ -381,7 +398,7 @@ class _ChatBubbleState extends State<ChatBubble>
                 SizedBox(width: 8),
                 Text(
                   'Code',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.getFont(Util.appFont).copyWith(
                     fontSize: 12,
                     color: Colors.white70,
                   ),
@@ -404,7 +421,7 @@ class _ChatBubbleState extends State<ChatBubble>
               padding: EdgeInsets.all(16),
               child: SelectableText(
                 code,
-                style: GoogleFonts.jetBrainsMono(
+                style: GoogleFonts.getFont(Util.appFont).copyWith(
                   fontSize: 13,
                   height: 1.5,
                   color: Colors.white.withOpacity(0.9),
@@ -435,7 +452,7 @@ class _ChatBubbleState extends State<ChatBubble>
       if (line.startsWith('Title: ')) {
         spans.add(TextSpan(
           text: line + '\n',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.getFont(Util.appFont).copyWith(
             fontSize: 26,
             fontWeight: FontWeight.w600,
             height: 1.4,
@@ -454,7 +471,7 @@ class _ChatBubbleState extends State<ChatBubble>
         }
         spans.add(TextSpan(
           text: '\n' + line + '\n',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.getFont(Util.appFont).copyWith(
             fontSize: 18,
             fontWeight: FontWeight.w600,
             height: 1.8,
@@ -476,7 +493,7 @@ class _ChatBubbleState extends State<ChatBubble>
           if (match.start > currentIndex) {
             spans.add(TextSpan(
               text: line.substring(currentIndex, match.start),
-              style: GoogleFonts.inter(
+              style: GoogleFonts.getFont(Util.appFont).copyWith(
                 fontSize: 15,
                 height: 1.6,
                 color: textColor,
@@ -487,7 +504,7 @@ class _ChatBubbleState extends State<ChatBubble>
           // Add bold text
           spans.add(TextSpan(
             text: match.group(1), // Only the text between **
-            style: GoogleFonts.inter(
+            style: GoogleFonts.getFont(Util.appFont).copyWith(
               fontSize: 15,
               height: 1.6,
               fontWeight: FontWeight.w600,
@@ -502,7 +519,7 @@ class _ChatBubbleState extends State<ChatBubble>
         if (currentIndex < line.length) {
           spans.add(TextSpan(
             text: line.substring(currentIndex) + '\n',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.getFont(Util.appFont).copyWith(
               fontSize: 15,
               height: 1.6,
               color: textColor,
@@ -513,7 +530,7 @@ class _ChatBubbleState extends State<ChatBubble>
         // No bold text in line
         spans.add(TextSpan(
           text: line + '\n',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.getFont(Util.appFont).copyWith(
             fontSize: 15,
             height: 1.6,
             color: textColor,
@@ -526,7 +543,7 @@ class _ChatBubbleState extends State<ChatBubble>
       width: double.infinity,
       child: SelectableText.rich(
         TextSpan(children: spans),
-        style: GoogleFonts.inter(height: 1.5),
+        style: GoogleFonts.getFont(Util.appFont).copyWith(height: 1.5),
         textAlign: TextAlign.left,
         enableInteractiveSelection: true,
       ),
@@ -666,7 +683,7 @@ class _ChatBubbleState extends State<ChatBubble>
                 .map((header) => DataColumn(
                       label: SelectableText(
                         header,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.getFont(Util.appFont).copyWith(
                           fontWeight: FontWeight.w600,
                           color: Colors.white.withOpacity(0.9),
                         ),
@@ -679,7 +696,7 @@ class _ChatBubbleState extends State<ChatBubble>
                           .map((cell) => DataCell(
                                 SelectableText(
                                   cell,
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.getFont(Util.appFont).copyWith(
                                     color: Colors.white.withOpacity(0.8),
                                   ),
                                 ),
@@ -694,7 +711,7 @@ class _ChatBubbleState extends State<ChatBubble>
       // Fallback to text representation during streaming
       return SelectableText(
         tableLines.join('\n'),
-        style: GoogleFonts.jetBrainsMono(
+        style: GoogleFonts.getFont(Util.appFont).copyWith(
           fontSize: 13,
           height: 1.5,
           color: Colors.white.withOpacity(0.9),
@@ -715,7 +732,7 @@ class _ChatBubbleState extends State<ChatBubble>
       ),
       child: SelectableText(
         code,
-        style: GoogleFonts.jetBrainsMono(
+        style: GoogleFonts.getFont(Util.appFont).copyWith(
           fontSize: 13,
           color: Colors.white.withOpacity(0.9),
         ),
