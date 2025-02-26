@@ -119,19 +119,18 @@ class _ChatInputState extends State<ChatInput> {
     return RawKeyboardListener(
       focusNode: _focusNode,
       onKey: (event) {
-        if (event is RawKeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
-          if (widget.isStreaming) {
-            widget.onStopGeneration?.call();
-          }
-        }
-        if (event is RawKeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.enter &&
-            HardwareKeyboard.instance.isControlPressed &&
-            !widget.isStreaming) {
-          if (widget.controller.text.trim().isNotEmpty) {
-            widget.onSend(widget.controller.text);
-            widget.controller.clear();
+        if (event is RawKeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.escape) {
+            if (widget.isStreaming) {
+              widget.onStopGeneration?.call();
+            }
+          } else if (event.logicalKey == LogicalKeyboardKey.enter) {
+            if (HardwareKeyboard.instance.isControlPressed && !widget.isStreaming) {
+              if (widget.controller.text.trim().isNotEmpty) {
+                widget.onSend(widget.controller.text);
+                widget.controller.clear();
+              }
+            }
           }
         }
       },
@@ -240,9 +239,28 @@ class _ChatInputState extends State<ChatInput> {
                             ),
                             cursorColor: Color(0xFF8B5CF6),
                             keyboardType: TextInputType.multiline,
-                            maxLines: 5,
+                            maxLines: 8,
                             minLines: 1,
-                            textInputAction: TextInputAction.send,
+                            textInputAction: TextInputAction.newline,
+                            onSubmitted: (value) {
+                              if (value.trim().isNotEmpty && !widget.isStreaming) {
+                                widget.onSend(value);
+                                widget.controller.clear();
+                              }
+                            },
+                            onChanged: (value) {
+                              setState(() {}); // Rebuild to update send button color
+                            },
+                            inputFormatters: [
+                              TextInputFormatter.withFunction((oldValue, newValue) {
+                                if (HardwareKeyboard.instance.isControlPressed &&
+                                    newValue.text.endsWith('\n') &&
+                                    oldValue.text.length + 1 == newValue.text.length) {
+                                  return oldValue;
+                                }
+                                return newValue;
+                              }),
+                            ],
                             style: GoogleFonts.getFont(Util.appFont).copyWith(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 14,

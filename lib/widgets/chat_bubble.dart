@@ -50,6 +50,15 @@ class _ChatBubbleState extends State<ChatBubble>
   }
 
   @override
+  void didUpdateWidget(ChatBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update controller text if message actually changed
+    if (oldWidget.message != widget.message) {
+      _editController.text = widget.message;
+    }
+  }
+
+  @override
   void dispose() {
     _editController.dispose();
     super.dispose();
@@ -65,10 +74,10 @@ class _ChatBubbleState extends State<ChatBubble>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Color(0xFF2D2E32).withOpacity(0.3),
+              color: const Color(0xFF2D2E32).withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Color(0xFF8B5CF6).withOpacity(0.2),
+                color: const Color(0xFF8B5CF6).withOpacity(0.2),
               ),
             ),
             child: TextField(
@@ -87,11 +96,11 @@ class _ChatBubbleState extends State<ChatBubble>
               ),
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Row(
             children: [
               IconButton(
-                icon: Icon(Icons.check, color: Color(0xFF8B5CF6)),
+                icon: const Icon(Icons.check, color: Color(0xFF8B5CF6)),
                 onPressed: () {
                   if (_editController.text != widget.message) {
                     widget.onEdit?.call(_editController.text);
@@ -102,7 +111,7 @@ class _ChatBubbleState extends State<ChatBubble>
                 },
               ),
               IconButton(
-                icon: Icon(Icons.close, color: Colors.white70),
+                icon: const Icon(Icons.close, color: Colors.white70),
                 onPressed: () {
                   setState(() {
                     _editController.text = widget.message;
@@ -134,12 +143,12 @@ class _ChatBubbleState extends State<ChatBubble>
                 decoration: BoxDecoration(
                   color: widget.isUser
                       ? Colors.transparent
-                      : Color(0xFF8B5CF6).withOpacity(0.08),
+                      : const Color(0xFF8B5CF6).withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: widget.isUser
-                        ? Color(0xFF2D2E32).withOpacity(0.5)
-                        : Color(0xFF8B5CF6).withOpacity(0.15),
+                        ? const Color(0xFF2D2E32).withOpacity(0.5)
+                        : const Color(0xFF8B5CF6).withOpacity(0.15),
                     width: 1,
                   ),
                 ),
@@ -148,14 +157,14 @@ class _ChatBubbleState extends State<ChatBubble>
                       ? Icon(Icons.person_outline,
                           size: 16, color: Colors.white.withOpacity(0.7))
                       : Icon(Icons.auto_awesome,
-                          size: 16, color: Color(0xFF8B5CF6).withOpacity(0.8)),
+                          size: 16, color: const Color(0xFF8B5CF6).withOpacity(0.8)),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Text(
                 widget.isUser ? 'You' : 'OllaChat',
                 style: GoogleFonts.getFont(Util.appFont).copyWith(
-                  fontSize: 14  ,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: Colors.white.withOpacity(0.8),
                 ),
@@ -178,22 +187,22 @@ class _ChatBubbleState extends State<ChatBubble>
                 ),
             ],
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Container(
-            margin: EdgeInsets.only(left: 44),
+            margin: const EdgeInsets.only(left: 44),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   decoration: BoxDecoration(
                     color: widget.isUser
-                        ? Color(0xFF2D2E32).withOpacity(0.2)
-                        : Color(0xFF1E1B2C).withOpacity(0.3),
+                        ? const Color(0xFF2D2E32).withOpacity(0.2)
+                        : const Color(0xFF1E1B2C).withOpacity(0.3),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: widget.isUser
-                          ? Color(0xFF2D2E32).withOpacity(0.3)
-                          : Color(0xFF8B5CF6).withOpacity(0.08),
+                          ? const Color(0xFF2D2E32).withOpacity(0.3)
+                          : const Color(0xFF8B5CF6).withOpacity(0.08),
                       width: 1,
                     ),
                   ),
@@ -201,7 +210,7 @@ class _ChatBubbleState extends State<ChatBubble>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: _buildMessageContent(),
                       ),
                       _buildActionBar(),
@@ -225,11 +234,11 @@ class _ChatBubbleState extends State<ChatBubble>
 
   Widget _buildActionBar() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: Color(0xFF2D2E32).withOpacity(0.3),
+            color: const Color(0xFF2D2E32).withOpacity(0.3),
           ),
         ),
       ),
@@ -238,23 +247,23 @@ class _ChatBubbleState extends State<ChatBubble>
         children: [
           if (widget.isUser && !_isEditing)
             IconButton(
-              icon: Icon(Icons.edit, size: 14),
+              icon: const Icon(Icons.edit, size: 14),
               onPressed: () {
                 setState(() {
                   _isEditing = true;
                 });
               },
               color: Colors.white.withOpacity(0.4),
-              padding: EdgeInsets.all(8),
-              constraints: BoxConstraints(),
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
               splashRadius: 20,
             ),
           IconButton(
-            icon: Icon(Icons.copy, size: 14),
+            icon: const Icon(Icons.copy, size: 14),
             onPressed: widget.onCopy,
             color: Colors.white.withOpacity(0.4),
-            padding: EdgeInsets.all(8),
-            constraints: BoxConstraints(),
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
             splashRadius: 20,
           ),
           if (!widget.isUser)
@@ -265,17 +274,17 @@ class _ChatBubbleState extends State<ChatBubble>
               ),
               onPressed: widget.onSpeak,
               color: Colors.white.withOpacity(0.4),
-              padding: EdgeInsets.all(8),
-              constraints: BoxConstraints(),
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
               splashRadius: 20,
             ),
           if (widget.onRegenerate != null)
             IconButton(
-              icon: Icon(Icons.refresh, size: 14),
+              icon: const Icon(Icons.refresh, size: 14),
               onPressed: widget.onRegenerate,
               color: Colors.white.withOpacity(0.4),
-              padding: EdgeInsets.all(8),
-              constraints: BoxConstraints(),
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
               splashRadius: 20,
             ),
         ],
@@ -283,10 +292,19 @@ class _ChatBubbleState extends State<ChatBubble>
     );
   }
 
+  // Memoize expensive widget builds for better performance
+  final Map<String, Widget> _cachedWidgets = {};
+
   Widget _buildMessageText(String message) {
+    // Simple cache for complex rendered messages to reduce rebuilds
+    // Only cache non-streaming messages to prevent display issues
+    if (!widget.isStreaming && _cachedWidgets.containsKey(message)) {
+      return _cachedWidgets[message]!;
+    }
+
     // For user messages, just show the raw text
     if (widget.isUser) {
-      return SelectableText(
+      final result = SelectableText(
         message,
         style: GoogleFonts.getFont(Util.appFont).copyWith(
           fontSize: 15,
@@ -294,6 +312,12 @@ class _ChatBubbleState extends State<ChatBubble>
           color: Colors.white.withOpacity(0.78),
         ),
       );
+      
+      if (!widget.isStreaming) {
+        _cachedWidgets[message] = result;
+      }
+      
+      return result;
     }
 
     // For bot messages, apply all the formatting
@@ -351,10 +375,17 @@ class _ChatBubbleState extends State<ChatBubble>
       }
     }
 
-    return Column(
+    final result = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: widgets,
     );
+    
+    // Only cache non-streaming messages
+    if (!widget.isStreaming) {
+      _cachedWidgets[message] = result;
+    }
+    
+    return result;
   }
 
   Widget _buildCodeBlock(String code) {
@@ -719,29 +750,4 @@ class _ChatBubbleState extends State<ChatBubble>
       );
     }
   }
-
-  // Add new method for inline code
-  Widget _buildInlineCode(String code) {
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
-      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Color(0xFF16161A),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Color(0xFF2D2E32)),
-      ),
-      child: SelectableText(
-        code,
-        style: GoogleFonts.getFont(Util.appFont).copyWith(
-          fontSize: 13,
-          color: Colors.white.withOpacity(0.9),
-        ),
-      ),
-    );
-  }
-}
-
-// Add these extensions to help with null safety
-extension ListExtension<T> on List<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

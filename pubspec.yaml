@@ -58,6 +58,7 @@ dependencies:
   excel: ^4.0.2
   path: ^1.8.3
   desktop_drop: ^0.5.0
+  flutter_hooks: ^0.21.2
 
 dev_dependencies:
   flutter_test:

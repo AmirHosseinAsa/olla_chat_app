@@ -1787,42 +1787,43 @@ class _ChatPageState extends State<ChatPage>
                                     _chatController.text = prompt;
                                   },
                                 )
-                              : CustomScrollView(
-                                  key: _listKey,
+                              : SingleChildScrollView(
                                   controller: _scrollController,
-                                  cacheExtent: 1000,
                                   physics: SmoothScrollBehavior()
                                       .getScrollPhysics(context),
-                                  slivers: [
-                                    if (_isLoadingMoreChats)
-                                      SliverToBoxAdapter(
-                                        child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_isLoadingMoreChats)
+                                        Center(
                                           child: Padding(
                                             padding: EdgeInsets.all(8.0),
                                             child: CircularProgressIndicator(),
                                           ),
                                         ),
-                                      ),
-                                    SliverList(
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) {
-                                          if (index >= chats.length)
-                                            return null;
-                                          return RepaintBoundary(
-                                            child: KeyedSubtree(
-                                              key: ValueKey(
-                                                  'chat_${chats[index].id}'),
-                                              child: _buildChatBubble(
-                                                chats[index],
-                                                index == chats.length - 1,
+                                      Flexible(
+                                        child: ListView.builder(
+                                          key: _listKey,
+                                          shrinkWrap: true,
+                                          physics: NeverScrollableScrollPhysics(),
+                                          cacheExtent: 1000,
+                                          itemCount: chats.length,
+                                          itemBuilder: (context, index) {
+                                            return RepaintBoundary(
+                                              child: KeyedSubtree(
+                                                key: ValueKey(
+                                                    'chat_${chats[index].id}'),
+                                                child: _buildChatBubble(
+                                                  chats[index],
+                                                  index == chats.length - 1,
+                                                ),
                                               ),
-                                            ),
-                                          );
-                                        },
-                                        childCount: chats.length,
+                                            );
+                                          },
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                         ),
                         ChatInput(
