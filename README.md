@@ -41,7 +41,8 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 - [X] Drop files into chat box
 - [X] improve hotkeys 
 - [X] add sample prompts
-- [ ] relase app build
+- [X] fix scrolling issue
+- [X] relase app build
 - [ ] make toturial video
 - [ ] add dark and white mode
 
