@@ -15,6 +15,7 @@ class ChatInput extends StatefulWidget {
   final Function(PlatformFile) onRemoveFile;
   final VoidCallback? onStopGeneration;
   final Function(List<PlatformFile>)? onFilesDropped;
+  final FocusNode? focusNode;
 
   ChatInput({
     Key? key,
@@ -26,6 +27,7 @@ class ChatInput extends StatefulWidget {
     required this.onRemoveFile,
     this.onStopGeneration,
     this.onFilesDropped,
+    this.focusNode,
   }) : super(key: key);
 
   @override
@@ -34,18 +36,48 @@ class ChatInput extends StatefulWidget {
 
 class _ChatInputState extends State<ChatInput> {
   late final FocusNode _focusNode;
+  late final FocusNode _textFieldFocusNode;
   bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
+    _textFieldFocusNode = widget.focusNode ?? FocusNode();
   }
 
   @override
   void dispose() {
     _focusNode.dispose();
+    // Only dispose the focus node if we created it
+    if (widget.focusNode == null) {
+      _textFieldFocusNode.dispose();
+    }
     super.dispose();
+  }
+
+  // Method to focus the text field and place cursor at the end
+  void focusTextField() {
+    _textFieldFocusNode.requestFocus();
+    // Set cursor to end of text
+    if (widget.controller.text.isNotEmpty) {
+      widget.controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: widget.controller.text.length),
+      );
+    }
+  }
+
+  // Watch for changes in streaming state
+  @override
+  void didUpdateWidget(ChatInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If streaming just ended, maintain focus on the text field
+    if (oldWidget.isStreaming && !widget.isStreaming) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        focusTextField();
+      });
+    }
   }
 
   bool _isImageFile(String extension) {
@@ -125,7 +157,8 @@ class _ChatInputState extends State<ChatInput> {
               widget.onStopGeneration?.call();
             }
           } else if (event.logicalKey == LogicalKeyboardKey.enter) {
-            if (HardwareKeyboard.instance.isControlPressed && !widget.isStreaming) {
+            if (HardwareKeyboard.instance.isControlPressed &&
+                !widget.isStreaming) {
               if (widget.controller.text.trim().isNotEmpty) {
                 widget.onSend(widget.controller.text);
                 widget.controller.clear();
@@ -222,48 +255,61 @@ class _ChatInputState extends State<ChatInput> {
                         child: Padding(
                           padding:
                               EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: TextField(
-                            controller: widget.controller,
-                            decoration: InputDecoration(
-                              hintText: _isDragging
-                                  ? 'Drop files here...'
-                                  : 'Type a message...',
-                              hintStyle:
-                                  GoogleFonts.getFont(Util.appFont).copyWith(
-                                color: Colors.white.withOpacity(0.3),
+                          child: RepaintBoundary(
+                            child: TextField(
+                              controller: widget.controller,
+                              focusNode: _textFieldFocusNode,
+                              decoration: InputDecoration(
+                                hintText: _isDragging
+                                    ? 'Drop files here...'
+                                    : 'Type a message...',
+                                hintStyle:
+                                    GoogleFonts.getFont(Util.appFont).copyWith(
+                                  color: Colors.white.withOpacity(0.3),
+                                  fontSize: 14,
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                border: InputBorder.none,
+                              ),
+                              cursorColor: Color(0xFF8B5CF6),
+                              keyboardType: TextInputType.multiline,
+                              maxLines: 8,
+                              minLines: 1,
+                              textInputAction: TextInputAction.newline,
+                              onSubmitted: (value) {
+                                if (value.trim().isNotEmpty &&
+                                    !widget.isStreaming) {
+                                  widget.onSend(value);
+                                  widget.controller.clear();
+                                }
+                              },
+                              onChanged: (value) {
+                                // Only rebuild if the send button state would change
+                                final wasEmpty =
+                                    widget.controller.text.trim().isEmpty;
+                                final isEmpty = value.trim().isEmpty;
+                                if (wasEmpty != isEmpty) {
+                                  setState(() {});
+                                }
+                              },
+                              inputFormatters: [
+                                TextInputFormatter.withFunction(
+                                    (oldValue, newValue) {
+                                  if (HardwareKeyboard
+                                          .instance.isControlPressed &&
+                                      newValue.text.endsWith('\n') &&
+                                      oldValue.text.length + 1 ==
+                                          newValue.text.length) {
+                                    return oldValue;
+                                  }
+                                  return newValue;
+                                }),
+                              ],
+                              style: GoogleFonts.getFont(Util.appFont).copyWith(
+                                color: Colors.white.withOpacity(0.9),
                                 fontSize: 14,
                               ),
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              border: InputBorder.none,
-                            ),
-                            cursorColor: Color(0xFF8B5CF6),
-                            keyboardType: TextInputType.multiline,
-                            maxLines: 8,
-                            minLines: 1,
-                            textInputAction: TextInputAction.newline,
-                            onSubmitted: (value) {
-                              if (value.trim().isNotEmpty && !widget.isStreaming) {
-                                widget.onSend(value);
-                                widget.controller.clear();
-                              }
-                            },
-                            onChanged: (value) {
-                              setState(() {}); // Rebuild to update send button color
-                            },
-                            inputFormatters: [
-                              TextInputFormatter.withFunction((oldValue, newValue) {
-                                if (HardwareKeyboard.instance.isControlPressed &&
-                                    newValue.text.endsWith('\n') &&
-                                    oldValue.text.length + 1 == newValue.text.length) {
-                                  return oldValue;
-                                }
-                                return newValue;
-                              }),
-                            ],
-                            style: GoogleFonts.getFont(Util.appFont).copyWith(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 14,
                             ),
                           ),
                         ),

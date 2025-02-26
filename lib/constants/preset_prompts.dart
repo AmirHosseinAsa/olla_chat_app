@@ -20,28 +20,28 @@ final List<PresetPrompt> presetPrompts = [
   PresetPrompt(
     title: 'Explain Code',
     prompt:
-        'Please explain how this code works in simple terms, breaking down its main components and functionality:',
+        'Please explain how this code works in simple terms, breaking down its main components and functionality:\n\n',
     icon: '📚',
   ),
   PresetPrompt(
     title: 'Debug Help',
     prompt:
-        'I need help debugging this code. Here\'s what\'s happening and what I\'ve tried so far:',
+        'I need help debugging this code. Here\'s what\'s happening and what I\'ve tried so far:\n\n',
     icon: '🐛',
   ),
   PresetPrompt(
     title: 'Writing Assistant',
-    prompt: 'Help me write clear and professional content for:',
+    prompt: 'Help me write clear and professional content for:\n',
     icon: '✍️',
   ),
   PresetPrompt(
     title: 'Brainstorm Ideas',
-    prompt: 'Let\'s brainstorm creative ideas for:',
+    prompt: 'Let\'s brainstorm creative ideas for:\n',
     icon: '💡',
   ),
   PresetPrompt(
     title: 'Data Analysis',
-    prompt: 'Help me analyze this data and extract meaningful insights:',
+    prompt: 'Help me analyze this data and extract meaningful insights:\n\n',
     icon: '📊',
   ),
   PresetPrompt(

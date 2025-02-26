@@ -65,6 +65,9 @@ class _ChatPageState extends State<ChatPage>
   ChatSession? currentSession;
   bool isSidebarCollapsed = false;
 
+  // Add FocusNode for the chat input
+  final FocusNode _chatInputFocusNode = FocusNode();
+
   // Initialize Ollama client
   final OllamaClient _ollamaClient = OllamaClient(
     baseUrl: 'http://localhost:11434/api',
@@ -162,6 +165,17 @@ class _ChatPageState extends State<ChatPage>
   // Add these to the _ChatPageState class properties
   final ValueNotifier<bool> _ollamaAvailable = ValueNotifier<bool>(false);
   final ValueNotifier<String> _ollamaError = ValueNotifier<String>('');
+
+  // Add this to the _ChatPageState class properties
+  double _lastScrollPosition = 0;
+  bool _userScrolledDuringStreaming = false;
+
+  // Add a ValueNotifier for the bot message content
+  final ValueNotifier<String> _botMessageNotifier = ValueNotifier<String>('');
+
+  // Add a ValueNotifier for scrolling position
+  final ValueNotifier<double> _scrollPositionNotifier =
+      ValueNotifier<double>(0.0);
 
   @override
   void initState() {
@@ -398,6 +412,9 @@ class _ChatPageState extends State<ChatPage>
       _selectedFiles.clear();
     });
 
+    // Reset the bot message notifier
+    _botMessageNotifier.value = '';
+
     // Get system prompt
     final prefs = await SharedPreferences.getInstance();
     final systemPrompt = prefs.getString('systemPrompt') ??
@@ -412,6 +429,11 @@ class _ChatPageState extends State<ChatPage>
         _isStreaming = true;
         _streamingNotifier.value = true;
         _shouldAutoScroll = true;
+        _userScrolledDuringStreaming = false;
+        // Initialize last scroll position when streaming starts
+        if (_scrollController.hasClients) {
+          _lastScrollPosition = _scrollController.position.pixels;
+        }
       });
 
       // Build conversation history
@@ -458,15 +480,13 @@ class _ChatPageState extends State<ChatPage>
             botChat.message += res.message!.content;
             chatBox.put(botChat);
 
-            // Force only the chat list to rebuild
-            if (mounted) {
-              setState(() {
-                chats = List.from(chats);
-              });
-            }
+            // Update the notifier instead of using setState
+            _botMessageNotifier.value = botChat.message;
 
-            // Handle streaming scroll
-            if (_shouldAutoScroll && _scrollController.hasClients) {
+            // Handle streaming scroll without triggering a full rebuild
+            if (_shouldAutoScroll &&
+                !_userScrolledDuringStreaming &&
+                _scrollController.hasClients) {
               final maxScroll = _scrollController.position.maxScrollExtent;
               final currentScroll = _scrollController.position.pixels;
 
@@ -476,16 +496,15 @@ class _ChatPageState extends State<ChatPage>
                 final targetScroll = maxScroll;
                 final increment = (targetScroll - currentScroll) * 0.1;
 
-                _scrollController.jumpTo(currentScroll + increment);
+                // Update scrolling through the notifier instead of directly manipulating the controller
+                _scrollPositionNotifier.value = currentScroll + increment;
 
-                // Final small animation to ensure we reach the bottom
-                if (maxScroll - (currentScroll + increment) < 10) {
-                  _scrollController.animateTo(
-                    maxScroll,
-                    duration: Duration(milliseconds: 10),
-                    curve: Curves.linear,
-                  );
-                }
+                // Use a post-frame callback to do the actual scrolling to avoid UI blocking
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients && mounted) {
+                    _scrollController.jumpTo(_scrollPositionNotifier.value);
+                  }
+                });
               }
             }
           }
@@ -600,9 +619,22 @@ class _ChatPageState extends State<ChatPage>
       _isStreaming = false;
       _streamingNotifier.value = false;
     });
+
+    // Update the actual chat message with the current notifier value
+    if (chats.isNotEmpty && !chats.last.isUserMessage) {
+      final botChat = chats.last;
+      botChat.message = _botMessageNotifier.value;
+      chatBox.put(botChat);
+    }
+
     // Force rebuild of chat list
     setState(() {
       chats = List.from(chats);
+    });
+
+    // Maintain focus on the chat input after stopping generation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _chatInputFocusNode.requestFocus();
     });
   }
 
@@ -610,8 +642,12 @@ class _ChatPageState extends State<ChatPage>
   Future<void> _regenerateResponse(Chat userChat, Chat botChat) async {
     setState(() {
       _isStreaming = true;
+      _streamingNotifier.value = true;
       botChat.message = '';
       chatBox.put(botChat);
+
+      // Reset the bot message notifier
+      _botMessageNotifier.value = '';
     });
 
     String fullMessage = userChat.message;
@@ -741,15 +777,13 @@ class _ChatPageState extends State<ChatPage>
             botChat.message += res.message!.content;
             chatBox.put(botChat);
 
-            // Force only the chat list to rebuild
-            if (mounted) {
-              setState(() {
-                chats = List.from(chats);
-              });
-            }
+            // Update the notifier instead of using setState
+            _botMessageNotifier.value = botChat.message;
 
-            // Handle streaming scroll
-            if (_shouldAutoScroll && _scrollController.hasClients) {
+            // Handle streaming scroll without triggering a full rebuild
+            if (_shouldAutoScroll &&
+                !_userScrolledDuringStreaming &&
+                _scrollController.hasClients) {
               final maxScroll = _scrollController.position.maxScrollExtent;
               final currentScroll = _scrollController.position.pixels;
 
@@ -759,16 +793,15 @@ class _ChatPageState extends State<ChatPage>
                 final targetScroll = maxScroll;
                 final increment = (targetScroll - currentScroll) * 0.1;
 
-                _scrollController.jumpTo(currentScroll + increment);
+                // Update scrolling through the notifier instead of directly manipulating the controller
+                _scrollPositionNotifier.value = currentScroll + increment;
 
-                // Final small animation to ensure we reach the bottom
-                if (maxScroll - (currentScroll + increment) < 10) {
-                  _scrollController.animateTo(
-                    maxScroll,
-                    duration: Duration(milliseconds: 10),
-                    curve: Curves.linear,
-                  );
-                }
+                // Use a post-frame callback to do the actual scrolling to avoid UI blocking
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients && mounted) {
+                    _scrollController.jumpTo(_scrollPositionNotifier.value);
+                  }
+                });
               }
             }
           }
@@ -1057,17 +1090,21 @@ class _ChatPageState extends State<ChatPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _streamingNotifier.dispose();
-    flutterTts.stop();
-    _streamSubscription?.cancel();
-    _editController.dispose();
+    _botMessageNotifier.dispose();
+    _scrollPositionNotifier.dispose();
+    _controller.dispose();
     _chatController.dispose();
+    _editController.dispose();
+    _searchController.dispose();
     _scrollController.dispose();
     _sessionsScrollController.removeListener(_onSessionsScroll);
     _sessionsScrollController.dispose();
+    _streamSubscription?.cancel();
     _thinkingAnimationController.dispose();
-    _searchController.dispose();
+    flutterTts.stop();
     _ollamaAvailable.dispose();
     _ollamaError.dispose();
+    _chatInputFocusNode.dispose();
     super.dispose();
   }
 
@@ -1204,11 +1241,17 @@ class _ChatPageState extends State<ChatPage>
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
 
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent + 100,
-      duration: Duration(milliseconds: 150), // Faster duration for streaming
-      curve: Curves.easeInOut, // Smoother curve for streaming
-    );
+    // Use a post-frame callback to avoid UI blocking
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients && mounted) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 100,
+          duration:
+              Duration(milliseconds: 150), // Faster duration for streaming
+          curve: Curves.easeInOut, // Smoother curve for streaming
+        );
+      }
+    });
   }
 
   void _onScroll() {
@@ -1216,27 +1259,33 @@ class _ChatPageState extends State<ChatPage>
     final currentScroll = _scrollController.position.pixels;
     bool isNearBottom = maxScroll - currentScroll <= 100;
 
+    // During streaming, detect any user scroll activity
+    if (_isStreaming && _shouldAutoScroll) {
+      // If there's any scroll activity during streaming, mark it
+      if (currentScroll != _lastScrollPosition) {
+        _userScrolledDuringStreaming = true;
+        // Use the value notifier instead of setState
+        _shouldAutoScroll = false;
+      }
+    }
+
+    // Update last scroll position for next comparison
+    _lastScrollPosition = currentScroll;
+
     if (currentSession == null) {
       isNearBottom = false;
     }
 
-    // If user is scrolling up during streaming, disable auto-scroll
-    if (_isStreaming && !isNearBottom && _shouldAutoScroll) {
-      setState(() {
-        _shouldAutoScroll = false;
-      });
-    }
-
     // Only re-enable auto-scroll if user manually scrolls back to bottom
     if (isNearBottom && !_shouldAutoScroll) {
-      setState(() {
-        _shouldAutoScroll = true;
-      });
+      _shouldAutoScroll = true;
+      // Reset the user scroll flag when they go back to bottom
+      _userScrolledDuringStreaming = false;
     }
+
+    // Use the value notifier instead of setState
     if (_showScrollToBottomNotifier.value != !isNearBottom) {
-      setState(() {
-        _showScrollToBottomNotifier.value = !isNearBottom;
-      });
+      _showScrollToBottomNotifier.value = !isNearBottom;
     }
   }
 
@@ -1643,6 +1692,32 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Widget _buildChatBubble(Chat chat, bool isLast) {
+    // For the last bot message during streaming, use the ValueListenableBuilder
+    if (isLast && !chat.isUserMessage && _isStreaming) {
+      return ValueListenableBuilder<String>(
+        valueListenable: _botMessageNotifier,
+        builder: (context, streamingMessage, child) {
+          return ChatBubble(
+            message: streamingMessage,
+            isUser: chat.isUserMessage,
+            isStreaming: _isStreaming,
+            isEdited: chat.isEdited,
+            isSpeaking: isSpeaking,
+            showThinking: _showThinking && !chat.isUserMessage,
+            showThinkingIndicator: _showThinking,
+            onCopy: () {
+              Clipboard.setData(ClipboardData(text: streamingMessage));
+            },
+            onSpeak: () {
+              _speak(streamingMessage);
+            },
+            onStopGeneration: _stopGeneration,
+          );
+        },
+      );
+    }
+
+    // For all other messages, use the regular approach
     return ChatBubble(
       message: chat.message,
       isUser: chat.isUserMessage,
@@ -1654,6 +1729,9 @@ class _ChatPageState extends State<ChatPage>
           _isStreaming && isLast && !chat.isUserMessage && _showThinking,
       onCopy: () {
         Clipboard.setData(ClipboardData(text: chat.message));
+      },
+      onSpeak: () {
+        _speak(chat.message);
       },
       onEdit: chat.isUserMessage
           ? (String newText) async {
@@ -1677,13 +1755,8 @@ class _ChatPageState extends State<ChatPage>
                     _isStreaming = true;
                   });
 
-                  // Create messages array with edited message
-                  List<Map<String, dynamic>> messages = [
-                    {
-                      "role": "user",
-                      "content": newText,
-                    }
-                  ];
+                  // Reset the bot message notifier
+                  _botMessageNotifier.value = '';
 
                   // Regenerate response with edited message
                   await _regenerateResponse(chat, botChat);
@@ -1691,13 +1764,16 @@ class _ChatPageState extends State<ChatPage>
               }
             }
           : null,
-      onRegenerate: !chat.isUserMessage && isLast
-          ? () {
-              final userChat = chats[chats.indexOf(chat) - 1];
-              _regenerateResponse(userChat, chat);
+      onRegenerate: !chat.isUserMessage && !_isStreaming
+          ? () async {
+              // Find the user message that generated this response
+              final chatIndex = chats.indexOf(chat);
+              if (chatIndex > 0) {
+                final userChat = chats[chatIndex - 1];
+                await _regenerateResponse(userChat, chat);
+              }
             }
           : null,
-      onSpeak: () => _speak(chat.message),
       onStopGeneration: _isStreaming && isLast && !chat.isUserMessage
           ? _stopGeneration
           : null,
@@ -1785,6 +1861,18 @@ class _ChatPageState extends State<ChatPage>
                               ? PresetPromptsGrid(
                                   onPromptSelected: (prompt) {
                                     _chatController.text = prompt;
+                                    // Focus the text field after setting the prompt
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      _chatInputFocusNode.requestFocus();
+                                      // Set cursor to end of text
+                                      _chatController.selection =
+                                          TextSelection.fromPosition(
+                                        TextPosition(
+                                            offset:
+                                                _chatController.text.length),
+                                      );
+                                    });
                                   },
                                 )
                               : SingleChildScrollView(
@@ -1805,7 +1893,8 @@ class _ChatPageState extends State<ChatPage>
                                         child: ListView.builder(
                                           key: _listKey,
                                           shrinkWrap: true,
-                                          physics: NeverScrollableScrollPhysics(),
+                                          physics:
+                                              NeverScrollableScrollPhysics(),
                                           cacheExtent: 1000,
                                           itemCount: chats.length,
                                           itemBuilder: (context, index) {
@@ -1835,6 +1924,7 @@ class _ChatPageState extends State<ChatPage>
                           onRemoveFile: _removeFile,
                           onStopGeneration: _stopGeneration,
                           onFilesDropped: _handleDroppedFiles,
+                          focusNode: _chatInputFocusNode,
                         ),
                       ],
                     );

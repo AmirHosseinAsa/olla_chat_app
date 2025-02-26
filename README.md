@@ -42,6 +42,9 @@ While Ollama provides a powerful command-line interface and web UI, setting it u
 - [X] improve hotkeys 
 - [X] add sample prompts
 - [X] fix scrolling issue
+- [X] improve scrolling with touchpad
+- [X] fix focus input issues
+- [ ] make installable version
 - [ ] relase app build
 - [ ] make toturial video
 - [ ] add dark and white mode
